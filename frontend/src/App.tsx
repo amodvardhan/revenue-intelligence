@@ -23,10 +23,13 @@ const phase6 = import.meta.env.VITE_ENABLE_PHASE6 === "true";
 
 function Shell() {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-mesh-page">
       <AppSidebar />
-      <main className="flex-1 overflow-auto bg-[#F8FAFC]">
-        <Outlet />
+      <main className="relative flex-1 overflow-auto">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(15,23,42,0.02))]" aria-hidden />
+        <div className="relative">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

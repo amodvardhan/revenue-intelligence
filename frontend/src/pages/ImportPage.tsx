@@ -152,27 +152,28 @@ export function ImportPage() {
   }, [firstOrg, setValue]);
 
   return (
-    <div className="max-w-4xl space-y-6 p-6">
-      <header>
-        <h1 className="text-display text-3xl font-semibold text-slate-900">Import</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Upload Excel with columns: amount, revenue_date; optional business_unit, division, customer,
-          revenue_type.
+    <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
+      <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-white via-white to-amber-50/20 p-8 shadow-card">
+        <div className="pointer-events-none absolute -left-8 -top-8 h-36 w-36 rounded-full bg-amber-200/30 blur-3xl" aria-hidden />
+        <p className="text-xs font-semibold uppercase tracking-widest text-amber-700/80">Data pipeline</p>
+        <h1 className="text-display mt-2 text-3xl">Import</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted">
+          Upload Excel with columns: amount, revenue_date; optional business_unit, division, customer, revenue_type.
         </p>
       </header>
 
       <form
-        className="space-y-4"
+        className="space-y-6"
         onSubmit={handleSubmit((v) => {
           setTerminal(null);
           upload.mutate(v);
         })}
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="surface-card grid gap-4 p-5 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Organization</label>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Organization</label>
             <select
-              className="h-10 w-full rounded-md border border-border px-3 text-sm"
+              className="input-modern h-10 w-full"
               {...register("org_id", { required: true })}
               defaultValue={firstOrg}
             >
@@ -184,18 +185,18 @@ export function ImportPage() {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Period start</label>
-              <input type="date" className="h-10 w-full rounded-md border border-border px-3 text-sm" {...register("period_start")} />
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Period start</label>
+              <input type="date" className="input-modern h-10 w-full" {...register("period_start")} />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Period end</label>
-              <input type="date" className="h-10 w-full rounded-md border border-border px-3 text-sm" {...register("period_end")} />
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Period end</label>
+              <input type="date" className="input-modern h-10 w-full" {...register("period_end")} />
             </div>
           </div>
         </div>
-        <label className="flex items-center gap-2 rounded-md border border-warning bg-warning-surface px-3 py-2 text-sm">
+        <label className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-amber-50/50 px-4 py-3 text-sm text-amber-950">
           <input
             type="checkbox"
             {...register("replace", {
@@ -249,7 +250,7 @@ export function ImportPage() {
         <button
           type="submit"
           disabled={!file || !orgId || upload.isPending}
-          className="h-10 rounded-md bg-primary px-6 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+          className="h-11 rounded-xl bg-gradient-to-r from-primary to-teal-500 px-8 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:brightness-105 disabled:opacity-50"
         >
           {upload.isPending ? "Importing…" : "Start import"}
         </button>

@@ -85,20 +85,24 @@ export function NLQueryPage() {
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-display text-2xl font-semibold text-slate-900">Ask revenue</h1>
-      <p className="mt-1 text-small text-slate-600">
-        Ask questions in plain language. Answers use the same revenue definitions as Analytics — governed,
-        read-only execution.
-      </p>
+    <div className="mx-auto max-w-4xl px-6 py-8">
+      <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-white via-cyan-50/30 to-indigo-50/20 p-8 shadow-card">
+        <div className="pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full bg-indigo-300/20 blur-3xl" aria-hidden />
+        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Natural language</p>
+        <h1 className="text-display mt-2 text-3xl">Ask revenue</h1>
+        <p className="mt-2 max-w-2xl text-small">
+          Ask questions in plain language. Answers use the same revenue definitions as Analytics — governed, read-only
+          execution.
+        </p>
+      </header>
 
-      <div className="mt-6 max-w-3xl space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm text-slate-700">
+      <div className="mt-8 max-w-3xl space-y-5">
+        <div className="surface-card flex flex-wrap items-end gap-3 p-4">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">
             Organization (optional)
             <input
               type="text"
-              className="ml-2 w-72 rounded-sm border border-border px-2 py-1 font-mono text-xs"
+              className="input-modern mt-1.5 ml-0 block w-full max-w-md font-mono text-xs sm:ml-0"
               placeholder="org UUID"
               value={orgId}
               onChange={(e) => setOrgId(e.target.value.trim())}
@@ -137,7 +141,7 @@ export function NLQueryPage() {
         {completed ? (
           <>
             <ResolvedInterpretationPanel interpretation={completed.interpretation} />
-            <p className="text-xs text-slate-500">Semantic version: {completed.semantic_version_label}</p>
+            <p className="text-xs text-ink-muted">Semantic version: {completed.semantic_version_label}</p>
             <NLQueryResultPanel columns={completed.columns} rows={completed.rows} />
           </>
         ) : null}

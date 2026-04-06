@@ -19,14 +19,14 @@ export function NLQueryComposer({
   disabled,
 }: NLQueryComposerProps) {
   return (
-    <div className="rounded-md border border-border bg-surface-elevated p-4 shadow-sm">
+    <div className="surface-card border-primary/10 p-5 shadow-glow">
       <label htmlFor="nl-question" className="sr-only">
         Natural language question
       </label>
       <textarea
         id="nl-question"
-        rows={4}
-        className="w-full resize-y rounded-sm border border-border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary"
+        rows={5}
+        className="w-full resize-y rounded-xl border border-border/80 bg-surface-subtle/40 px-4 py-3 text-sm text-ink placeholder:text-ink-muted/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         placeholder="Example: What was Q3 revenue by business unit?"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -34,17 +34,17 @@ export function NLQueryComposer({
         disabled={disabled || loading}
         aria-busy={loading}
       />
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={onSubmit}
           disabled={disabled || loading || !value.trim()}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-teal-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-900/10 transition hover:brightness-105 disabled:opacity-50"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
           Ask
         </button>
-        <p className="text-xs text-slate-500">Read-only, governed execution. Ctrl+Enter to submit.</p>
+        <p className="text-xs text-ink-muted">Read-only, governed execution. Ctrl+Enter to submit.</p>
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import { useAuthStore } from "@/store/authStore";
 const schema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
-  tenant_name: z.string().min(1).optional(),
+  tenant_name: z.string().max(200).optional(),
 });
 
 type Form = z.infer<typeof schema>;
@@ -25,7 +25,7 @@ export function LoginPage() {
   const setSession = useAuthStore((s) => s.setSession);
   const { register, handleSubmit } = useForm<Form>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: "", password: "", tenant_name: "" },
   });
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export function LoginPage() {
       }>("/api/v1/auth/register", {
         email: data.email,
         password: data.password,
-        tenant_name: data.tenant_name ?? "My Organization",
+        tenant_name: data.tenant_name?.trim() || "My Organization",
       });
       return res;
     },
@@ -78,83 +78,125 @@ export function LoginPage() {
   });
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
-      <h1 className="text-display mb-6 text-3xl font-semibold text-slate-900">Sign in</h1>
-      <form
-        className="space-y-4 rounded-lg border border-border bg-white p-6 shadow-sm"
-        onSubmit={handleSubmit((v) => login.mutate(v))}
-      >
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            className="h-10 w-full rounded-md border border-border px-3 text-sm"
-            {...register("email")}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            className="h-10 w-full rounded-md border border-border px-3 text-sm"
-            {...register("password")}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="tenant_name">
-            Tenant name (register only)
-          </label>
-          <input
-            id="tenant_name"
-            className="h-10 w-full rounded-md border border-border px-3 text-sm"
-            {...register("tenant_name")}
-          />
-        </div>
-        {(login.error || registerUser.error) && (
-          <p className="text-sm text-error">Request failed — check credentials or API.</p>
-        )}
-        {phase6 && defaultTenantId ? (
-          <div className="rounded-md border border-border bg-slate-50 p-3">
-            <p className="mb-2 text-xs text-slate-600">Enterprise SSO (OIDC)</p>
-            <a
-              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-white"
-              href={`${apiBase}/api/v1/auth/sso/oidc/login?tenant_id=${encodeURIComponent(defaultTenantId)}`}
-            >
-              Continue with SSO
-            </a>
+    <div className="relative min-h-screen overflow-hidden bg-slate-950">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_20%_0%,rgba(45,212,191,0.25),transparent),radial-gradient(ellipse_60%_50%_at_100%_30%,rgba(56,189,248,0.12),transparent)]"
+        aria-hidden
+      />
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col lg:flex-row">
+        <div className="flex flex-1 flex-col justify-center px-8 py-14 lg:max-w-md lg:py-20 lg:pr-4">
+          <div className="mb-10 text-white">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/90">Revenue Intelligence</p>
+            <h1 className="text-display mt-3 text-4xl font-bold tracking-tight text-white lg:text-[2.75rem]">
+              Ask revenue in plain language.
+            </h1>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
+              Sign in to explore imports, analytics, and governed natural-language queries — built for leaders who need
+              answers without waiting on a queue.
+            </p>
           </div>
-        ) : null}
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={login.isPending}
-            className="h-10 flex-1 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+          <form
+            className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.07] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+            onSubmit={handleSubmit((v) => login.mutate(v))}
           >
-            {login.isPending ? "…" : "Login"}
-          </button>
-          <button
-            type="button"
-            disabled={registerUser.isPending}
-            className="h-10 flex-1 rounded-md border border-border bg-white px-4 text-sm font-medium text-slate-800"
-            onClick={handleSubmit((v) => registerUser.mutate(v))}
-          >
-            Register
-          </button>
+            <h2 className="text-lg font-semibold text-white">Sign in</h2>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-400" htmlFor="email">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 text-sm text-white placeholder:text-slate-500 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                {...register("email")}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-400" htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 text-sm text-white placeholder:text-slate-500 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                {...register("password")}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-400" htmlFor="tenant_name">
+                Tenant name (register only)
+              </label>
+              <input
+                id="tenant_name"
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 text-sm text-white placeholder:text-slate-500 focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                {...register("tenant_name")}
+              />
+            </div>
+            {(login.error || registerUser.error) && (
+              <p className="text-sm text-red-300">Request failed — check credentials or API.</p>
+            )}
+            {phase6 && defaultTenantId ? (
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="mb-3 text-xs font-medium text-slate-300">Enterprise SSO (OIDC)</p>
+                <a
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-white px-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+                  href={`${apiBase}/api/v1/auth/sso/oidc/login?tenant_id=${encodeURIComponent(defaultTenantId)}`}
+                >
+                  Continue with SSO
+                </a>
+              </div>
+            ) : null}
+            <div className="flex gap-3 pt-1">
+              <button
+                type="submit"
+                disabled={login.isPending}
+                className="h-11 flex-1 rounded-xl bg-gradient-to-r from-primary to-teal-500 px-4 text-sm font-semibold text-white shadow-lg shadow-teal-900/40 transition hover:brightness-110 disabled:opacity-50"
+              >
+                {login.isPending ? "…" : "Login"}
+              </button>
+              <button
+                type="button"
+                disabled={registerUser.isPending}
+                className="h-11 flex-1 rounded-xl border border-white/15 bg-transparent px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                onClick={handleSubmit((v) => registerUser.mutate(v))}
+              >
+                Register
+              </button>
+            </div>
+            <p className="text-center text-xs text-slate-500">
+              <Link to="/import" className="font-medium text-teal-300/90 hover:text-teal-200">
+                Back to app
+              </Link>
+            </p>
+          </form>
         </div>
-        <p className="text-center text-xs text-slate-500">
-          <Link to="/import" className="text-primary">
-            Back to app
-          </Link>
-        </p>
-      </form>
+        <div className="relative hidden flex-1 lg:flex lg:items-stretch">
+          <div className="m-8 flex flex-1 flex-col justify-between rounded-3xl border border-white/10 bg-gradient-to-br from-teal-900/40 via-slate-900/60 to-slate-950 p-10">
+            <div className="space-y-6">
+              <div className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-teal-200/90">
+                Executive-ready
+              </div>
+              <blockquote className="text-xl font-medium leading-snug text-white/95">
+                “What we needed wasn’t more dashboards — it was a direct line from question to number, with traceability.”
+              </blockquote>
+            </div>
+            <div className="mt-12 grid grid-cols-3 gap-4 border-t border-white/10 pt-8">
+              {[
+                { k: "Rollups", v: "Org → BU → Division" },
+                { k: "Compare", v: "MoM · QoQ · YoY" },
+                { k: "Ask", v: "Governed NL → SQL" },
+              ].map((item) => (
+                <div key={item.k}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{item.k}</p>
+                  <p className="mt-1 text-sm text-slate-200">{item.v}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

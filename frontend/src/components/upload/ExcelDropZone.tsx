@@ -53,29 +53,31 @@ export function ExcelDropZone({ disabled, disabledReason, onFile, error }: Excel
           const f = e.dataTransfer.files[0];
           if (f) pick(f);
         }}
-        className={`flex min-h-dropzone cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed px-4 py-8 transition-colors ${
+        className={`flex min-h-dropzone cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-10 transition-all ${
           disabled ? "cursor-not-allowed opacity-50" : ""
         } ${
           error
             ? "border-error bg-error-surface"
             : drag
-              ? "border-accent bg-sky-50"
-              : "border-border bg-surface-elevated hover:border-primary hover:bg-primary-muted"
+              ? "border-primary scale-[1.01] bg-primary-muted shadow-glow"
+              : "border-border/80 bg-gradient-to-b from-white to-slate-50/80 hover:border-primary/60 hover:shadow-md"
         }`}
         onClick={() => !disabled && inputRef.current?.click()}
       >
         {error ? (
-          <AlertCircle className="mb-2 h-8 w-8 text-error" aria-hidden />
+          <AlertCircle className="mb-3 h-9 w-9 text-error" aria-hidden />
         ) : (
-          <Upload className="mb-2 h-8 w-8 text-slate-400" aria-hidden />
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-cyan-500/10 ring-1 ring-primary/20">
+            <Upload className="h-7 w-7 text-primary" aria-hidden />
+          </div>
         )}
-        <p className="text-center text-sm font-medium text-slate-800">
+        <p className="text-center text-sm font-semibold text-ink">
           {drag ? "Drop file to upload" : "Drag and drop your Excel file, or browse"}
         </p>
-        <p className="mt-1 text-center text-xs text-slate-500">.xlsx and .xls · max size per deployment</p>
+        <p className="mt-1 text-center text-xs text-ink-muted">.xlsx and .xls · max size per deployment</p>
         <button
           type="button"
-          className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+          className="mt-5 rounded-xl bg-gradient-to-r from-primary to-teal-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-900/10 transition hover:brightness-105"
           onClick={(e) => {
             e.stopPropagation();
             inputRef.current?.click();
