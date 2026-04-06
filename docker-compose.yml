@@ -1,0 +1,90 @@
+# Local stack — Postgres, Redis, FastAPI, Celery worker.
+# Copy .env.example to .env and adjust secrets; compose overrides DATABASE_URL / REDIS_URL for containers.
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql+asyncpg://postgres:password@postgres:5432/revenue_db
+  REDIS_URL: redis://redis:6379/0
+  # Overrides .env so local Docker always runs Phase 3 NL when the route is used (env_file alone can stay false on disk).
+  ENABLE_NL_QUERY: "true"
+
+services:
+  # One-shot: exits 0 after `alembic upgrade head`. "Exited" in Docker Desktop is normal.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: alembic upgrade head
+    env_file:
+      - .env
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    # Use local Python package so ingestion and other fixes apply without rebuilding the image.
+    volumes:
+      - ./backend/app:/app/app
+    env_file:
+      - .env
+    environment:
+      <<: *app-environment
+      # Override .env when missing or too short; set SECRET_KEY in .env for real use.
+      SECRET_KEY: ${SECRET_KEY:-dev-docker-secret-key-min-16}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app:celery_app worker --loglevel=info
+    volumes:
+      - ./backend/app:/app/app
+    env_file:
+      - .env
+    environment:
+      <<: *app-environment
+      SECRET_KEY: ${SECRET_KEY:-dev-docker-secret-key-min-16}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: revenue_db
+    # Host 5433 avoids clashing with a local PostgreSQL install that already uses 5432.
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d revenue_db"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:

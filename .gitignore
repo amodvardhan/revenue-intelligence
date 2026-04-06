@@ -1,0 +1,51 @@
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+*.tsbuildinfo
+
+# Logs and local data
+*.log
+logs/
+
+# IDE (optional — uncomment if you do not commit editor settings)
+# .idea/
+# .vscode/
+
+# Celery / runtime
+celerybeat-schedule
+celerybeat.pid
+
+# Docker overrides (if used locally)
+docker-compose.override.yml

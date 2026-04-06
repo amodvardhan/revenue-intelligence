@@ -1,0 +1,31 @@
+# Governed semantic bundle — version label must bump when metric/dimension meanings change.
+version_label: "2026.04.2"
+
+metrics:
+  total_revenue:
+    canonical: fact_revenue.amount
+    display_name: "Total revenue"
+    aggregation: sum
+  forecast_total:
+    canonical: fact_forecast.amount
+    display_name: "Forecast total (forward periods)"
+    aggregation: sum
+  margin_contribution:
+    canonical: "derived — use profitability service"
+    display_name: "Margin / contribution"
+    aggregation: sum
+
+dimensions:
+  business_unit:
+    canonical_key: dimension.business_unit
+    display_name: "Business unit"
+  division:
+    canonical_key: dimension.division
+    display_name: "Division"
+  organization:
+    canonical_key: dimension.organization
+    display_name: "Organization"
+
+period_hints:
+  calendar_quarter:
+    description: "Calendar quarters (Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec)"

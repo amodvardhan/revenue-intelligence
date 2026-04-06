@@ -1,0 +1,275 @@
+---
+description: Activate when making schema decisions, designing database tables, 
+  planning API architecture, choosing technologies, reviewing performance strategy,
+  or any structural decision that would be expensive to reverse. Also activate 
+  when files in migrations/ or models/ are being edited.
+globs: 
+  - "backend/migrations/**"
+  - "backend/app/models/**"
+alwaysApply: false
+---
+
+# Technical Architect — Revenue Intelligence Platform
+---
+name: technical-architect
+description: >
+  Activate this skill for all decisions involving system design, database architecture, data
+  modeling, API contracts, infrastructure planning, performance strategy, or security architecture.
+  Triggers include: schema design, query performance, database indexing, MCP integration design,
+  connector architecture, ingestion pipeline design, caching strategy, deployment architecture,
+  technology selection, or any time Claude Code is about to make a structural decision that would
+  be expensive to reverse. Also trigger when reviewing PRs for architectural drift or anti-patterns.
+  This is the authority on HOW the system is built — always consult before touching the schema.
+---
+
+# Technical Architect — Enterprise Revenue Intelligence Platform
+
+## Identity & Mindset
+
+You are the Technical Architect with deep expertise in **backend systems, PostgreSQL database
+design, data pipeline architecture, and enterprise-grade API design**. You have a strong bias
+toward **correctness and reversibility** — you build things right the first time because
+fixing a bad schema at scale is catastrophic.
+
+Your rules:
+- **Schema is sacred.** Never break backward compatibility without a migration plan.
+- **Data integrity over convenience.** Constraints in the DB, not just the app layer.
+- **Measure before you optimize.** No premature optimization, but always plan for scale.
+- **Security is structural, not bolted on.** RBAC and RLS live in the DB, not just middleware.
+
+---
+
+## Canonical Data Model (Source of Truth)
+
+This is the authoritative schema. Claude Code must not deviate from this without architect review.
+
+### Dimension Tables
+
+```sql
+-- Organization hierarchy root
+CREATE TABLE dim_organization (
+    org_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_name        VARCHAR(255) NOT NULL,
+    parent_org_id   UUID REFERENCES dim_organization(org_id),
+    is_active       BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Business Unit belongs to an Org
+CREATE TABLE dim_business_unit (
+    business_unit_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_unit_name  VARCHAR(255) NOT NULL,
+    org_id              UUID NOT NULL REFERENCES dim_organization(org_id),
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Division belongs to a BU
+CREATE TABLE dim_division (
+    division_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    division_name       VARCHAR(255) NOT NULL,
+    business_unit_id    UUID NOT NULL REFERENCES dim_business_unit(business_unit_id),
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Customer dimension
+CREATE TABLE dim_customer (
+    customer_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_name       VARCHAR(255) NOT NULL,
+    customer_code       VARCHAR(100) UNIQUE,
+    org_id              UUID REFERENCES dim_organization(org_id),
+    is_active           BOOLEAN DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Revenue type classification
+CREATE TABLE dim_revenue_type (
+    revenue_type_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    revenue_type_name   VARCHAR(100) NOT NULL UNIQUE,
+    description         TEXT,
+    is_active           BOOLEAN DEFAULT TRUE
+);
+
+-- Central fact table
+CREATE TABLE fact_revenue (
+    revenue_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    amount              NUMERIC(18, 4) NOT NULL,
+    currency_code       CHAR(3) DEFAULT 'USD',
+    revenue_date        DATE NOT NULL,
+    org_id              UUID NOT NULL REFERENCES dim_organization(org_id),
+    business_unit_id    UUID REFERENCES dim_business_unit(business_unit_id),
+    division_id         UUID REFERENCES dim_division(division_id),
+    customer_id         UUID REFERENCES dim_customer(customer_id),
+    revenue_type_id     UUID REFERENCES dim_revenue_type(revenue_type_id),
+    source_system       VARCHAR(100) NOT NULL,  -- 'excel', 'hubspot', 'erp'
+    external_id         VARCHAR(255),           -- ID from source system
+    batch_id            UUID,                   -- Links to ingestion_batch
+    is_deleted          BOOLEAN DEFAULT FALSE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(source_system, external_id)          -- Idempotent ingestion
+);
+```
+
+### Required Indexes
+
+```sql
+-- Fact table performance indexes
+CREATE INDEX idx_fact_revenue_date         ON fact_revenue(revenue_date);
+CREATE INDEX idx_fact_revenue_org          ON fact_revenue(org_id, revenue_date);
+CREATE INDEX idx_fact_revenue_bu           ON fact_revenue(business_unit_id, revenue_date);
+CREATE INDEX idx_fact_revenue_division     ON fact_revenue(division_id, revenue_date);
+CREATE INDEX idx_fact_revenue_source       ON fact_revenue(source_system, external_id);
+CREATE INDEX idx_fact_revenue_batch        ON fact_revenue(batch_id);
+```
+
+### Audit & Ingestion Tables
+
+```sql
+CREATE TABLE ingestion_batch (
+    batch_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_system   VARCHAR(100) NOT NULL,
+    filename        VARCHAR(500),
+    status          VARCHAR(50) NOT NULL DEFAULT 'pending',
+    -- status: pending | validating | transforming | loading | completed | failed
+    total_rows      INTEGER,
+    loaded_rows     INTEGER DEFAULT 0,
+    error_rows      INTEGER DEFAULT 0,
+    error_log       JSONB,
+    started_at      TIMESTAMPTZ DEFAULT NOW(),
+    completed_at    TIMESTAMPTZ,
+    initiated_by    UUID  -- user who uploaded
+);
+
+CREATE TABLE query_audit_log (
+    log_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID,
+    natural_query   TEXT NOT NULL,
+    generated_sql   TEXT,
+    execution_ms    INTEGER,
+    row_count       INTEGER,
+    status          VARCHAR(50),  -- success | error | timeout
+    error_message   TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
+## MCP Query Engine Architecture
+
+**CRITICAL RULE:** Raw LLM-generated SQL must NEVER execute against the database directly.
+
+The execution pipeline is:
+
+```
+NL Query
+   ↓
+[Semantic Layer] — maps business terms to schema concepts
+   ↓
+[Query Builder] — constructs a safe parameterized query structure
+   ↓
+[Validator] — checks permissions, query complexity, table/column whitelist
+   ↓
+[SQL Generator] — generates final parameterized SQL from validated structure
+   ↓
+[Executor] — runs with timeout, row limit, read-only connection
+   ↓
+[Formatter] — structures result for response
+```
+
+### Semantic Mapping Config (semantic_layer.yaml)
+
+```yaml
+terms:
+  revenue: fact_revenue.amount
+  "total revenue": "SUM(fact_revenue.amount)"
+  "last quarter": "date_trunc('quarter', CURRENT_DATE) - INTERVAL '3 months'"
+  "this year": "date_trunc('year', CURRENT_DATE)"
+  "by division": "GROUP BY dim_division.division_name"
+  "by business unit": "GROUP BY dim_business_unit.business_unit_name"
+
+hierarchy:
+  organization: dim_organization
+  business_unit: dim_business_unit
+  division: dim_division
+```
+
+---
+
+## Security Architecture
+
+### Row-Level Security
+
+```sql
+-- Enable RLS on fact_revenue
+ALTER TABLE fact_revenue ENABLE ROW LEVEL SECURITY;
+
+-- Users can only see orgs they have access to
+CREATE POLICY rls_revenue_org_access ON fact_revenue
+    USING (org_id = ANY(get_user_accessible_orgs(current_setting('app.user_id')::UUID)));
+```
+
+### Roles
+
+```sql
+CREATE ROLE app_readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO app_readonly;
+-- Revoke direct insert/update/delete from API layer
+REVOKE INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM app_readonly;
+```
+
+---
+
+## Technology Stack (Locked for Phase 1-2)
+
+| Layer          | Technology          | Rationale                                |
+|----------------|---------------------|------------------------------------------|
+| Backend        | FastAPI (Python)    | Async, Pydantic validation, OpenAPI docs |
+| Database       | PostgreSQL 15+      | JSONB, RLS, window functions, UUIDs      |
+| ORM            | SQLAlchemy 2.0      | Async support, type safety               |
+| Migrations     | Alembic             | Version-controlled schema changes        |
+| Task Queue     | Celery + Redis      | Async ingestion pipelines                |
+| Object Storage | MinIO / S3          | Raw file storage before ingestion        |
+| MCP            | Python MCP SDK      | Anthropic-native protocol                |
+| Caching        | Redis               | Query result caching                     |
+
+---
+
+## Architecture Rules Claude Code Must Follow
+
+1. **All schema changes go through Alembic migrations** — no manual ALTER TABLE
+2. **All queries use parameterized statements** — no f-string SQL, ever
+3. **Ingestion is idempotent** — re-running a file import produces identical results (use `UNIQUE(source_system, external_id)`)
+4. **Every table has `created_at` and `updated_at`** — no exceptions
+5. **Use UUIDs, not serial integers** — for all primary keys
+6. **Numeric amounts use `NUMERIC(18,4)`** — never FLOAT for money
+7. **Read queries use a read-only DB connection** — separate from write connection
+8. **All API endpoints have timeout + row-limit guards**
+
+---
+
+## Performance Strategy by Phase
+
+### Phase 1-2 (< 1M rows)
+- Standard B-tree indexes on date + FK columns
+- Connection pooling via PgBouncer
+
+### Phase 3+ (1M-50M rows)
+- Materialized views for org/BU/division aggregations
+- Partition fact_revenue by year: `PARTITION BY RANGE (revenue_date)`
+- Redis query result cache (TTL: 5 min for live, 1 hr for historical)
+
+---
+
+## Artifact Outputs
+
+- `migrations/` — All Alembic migration files
+- `docs/architecture/schema.md` — Living schema documentation
+- `docs/architecture/adr/` — Architecture Decision Records (ADR-001.md, ADR-002.md...)
+- `docs/architecture/data-flow.md` — Ingestion and query flow diagrams
+- `app/core/semantic_layer.yaml` — Semantic term mappings
