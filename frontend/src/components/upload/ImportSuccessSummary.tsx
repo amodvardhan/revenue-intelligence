@@ -28,10 +28,10 @@ export function ImportSuccessSummary({
       <div className="flex items-start gap-3">
         <CheckCircle2 className="h-8 w-8 shrink-0 text-success" aria-hidden />
         <div className="flex-1 space-y-3">
-          <h3 className="text-heading text-lg font-semibold text-slate-900">Import complete</h3>
+          <h3 className="text-heading text-[18px]">Import complete</h3>
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Batch ID</dt>
+              <dt className="text-ink-muted">Batch ID</dt>
               <dd className="flex items-center gap-2 font-mono text-xs">
                 <span className="truncate">{batchId}</span>
                 <button
@@ -45,30 +45,30 @@ export function ImportSuccessSummary({
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">File</dt>
+              <dt className="text-ink-muted">File</dt>
               <dd className="break-all">{filename}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Rows loaded</dt>
+              <dt className="text-ink-muted">Rows loaded</dt>
               <dd>
                 {loadedRows}
                 {totalRows !== null ? ` / ${totalRows}` : ""}
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Period</dt>
+              <dt className="text-ink-muted">Period</dt>
               <dd>
                 {periodStart ?? "—"} → {periodEnd ?? "—"}
               </dd>
             </div>
             {completedAt ? (
               <div className="sm:col-span-2">
-                <dt className="text-slate-500">Completed at</dt>
+                <dt className="text-ink-muted">Completed at</dt>
                 <dd>{new Date(completedAt).toLocaleString()}</dd>
               </div>
             ) : null}
           </dl>
-          <p className="text-sm text-slate-600">Next: Review revenue for this period.</p>
+          <p className="text-sm text-ink-muted">Next: Review revenue for this period.</p>
         </div>
       </div>
     </div>

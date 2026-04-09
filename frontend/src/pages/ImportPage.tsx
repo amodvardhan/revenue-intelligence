@@ -152,8 +152,8 @@ export function ImportPage() {
   }, [firstOrg, setValue]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-6 py-10">
-      <header className="border-b border-black/[0.06] pb-8">
+    <div className="page-shell page-shell--sm">
+      <header className="page-header-block">
         <h1 className="page-headline">Import</h1>
         <p className="page-lede">
           Use the <strong className="font-medium text-ink">EUROPE Weekly Commercial</strong> workbook (Sheet1, row 2
@@ -173,7 +173,7 @@ export function ImportPage() {
       >
         <div className="surface-card grid gap-4 p-5 sm:grid-cols-2">
           <div>
-            <label className="small-caps-label mb-1.5 block">Organization</label>
+            <label className="form-field-label">Organization</label>
             <select
               className="input-modern !h-10 w-full"
               {...register("org_id", { required: true })}
@@ -189,11 +189,11 @@ export function ImportPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="small-caps-label mb-1.5 block">Period start</label>
+              <label className="form-field-label">Period start</label>
               <input type="date" className="input-modern !h-10 w-full" {...register("period_start")} />
             </div>
             <div>
-              <label className="small-caps-label mb-1.5 block">Period end</label>
+              <label className="form-field-label">Period end</label>
               <input type="date" className="input-modern !h-10 w-full" {...register("period_end")} />
             </div>
           </div>

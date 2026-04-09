@@ -15,6 +15,10 @@
 
 **CRM-sourced revenue intelligence lands in the platform through a secure HubSpot connection, incremental sync, and explicit mapping into the canonical model—alongside Excel—without silently overriding Finance-owned actuals.**
 
+### Excel vs Phase 7 workbook (scope)
+
+**Excel** in Story 4.3 and in reconciliation means **Phase 1** spreadsheet ingestion into `fact_revenue` (locked rules in the ingestion validator), not the **Phase 7** standardized customer-matrix workbook (`Sheet1` / EUROPE reference in [`phase-7-requirements.md`](phase-7-requirements.md)). That template interop is **optional** and gated by **`ENABLE_PHASE7`**; it is not a Phase 4 deliverable.
+
 ---
 
 ## What Phase 3 delivered that Phase 4 builds on

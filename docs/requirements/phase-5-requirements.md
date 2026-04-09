@@ -118,7 +118,7 @@ Please confirm or adjust the following so engineering and QA can lock acceptance
 
 1. **Phase 5 priority order** — Should all four pillars (**5.1–5.4**) ship in one release, or is a **sequenced** MVP (e.g., multi-currency + forecasting first) required for the first pilot?
 2. **Forecast horizon and granularity** — Expected **months/quarters** ahead, **revision cadence**, and whether **scenario** labels (base / upside / downside) are **mandatory** for v1.
-3. **Imported forecast format** — Will Finance standardize on **Excel/CSV template** only, or **API upload**—and **who** may upload (Finance-only vs BU)?
+3. **Imported forecast format** — Will Finance standardize on **Excel/CSV** for forecast uploads, or **API upload**—and **who** may upload (Finance-only vs BU)? (This is the **forecast** import for Story 5.1, **not** the Phase 7 customer-matrix workbook in [`phase-7-requirements.md`](phase-7-requirements.md).)
 4. **Statistical forecast** — Minimum viable **simple statistical** method (e.g., trailing average, naive growth) if included: **acceptable** to Finance for internal views only, or **defer** until imported-only is stable?
 5. **Profitability v1 depth** — Is **gross margin** (revenue minus a single cost layer) sufficient for v1, or is **fully loaded** contribution required— and **where** do costs originate (new ingest only vs integration)?
 6. **Cost ingest authority** — Same **batch / immutability** rules as revenue imports, or different **correction** workflow?

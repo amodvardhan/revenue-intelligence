@@ -28,14 +28,14 @@ export function IngestionProgressTracker({ step, asyncMode, batchId }: Ingestion
             ) : i === idx ? (
               <Loader2 className="h-5 w-5 animate-spin text-accent" aria-hidden />
             ) : (
-              <span className="h-5 w-5 rounded-full border border-slate-300" />
+              <span className="h-5 w-5 rounded-full border border-neutral-300" />
             )}
-            <span className={i === idx ? "font-semibold text-slate-900" : "text-slate-500"}>{s.label}</span>
+            <span className={i === idx ? "font-semibold text-ink" : "text-ink-muted"}>{s.label}</span>
           </li>
         ))}
       </ol>
       {asyncMode && batchId ? (
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
           <span>Processing in background (up to 30 minutes per job policy).</span>
           <code className="rounded bg-surface-subtle px-2 py-0.5 font-mono text-xs">{batchId}</code>
           <button

@@ -6,11 +6,90 @@
   html {
     @apply scroll-smooth;
   }
+
   body {
     @apply bg-surface-page text-ink antialiased;
+    font-feature-settings: "kern" 1, "liga" 1;
   }
+
   ::selection {
-    @apply bg-neutral-300/40 text-ink;
+    @apply bg-primary/20 text-ink;
+  }
+}
+
+@layer components {
+  /* Main workspace: soft cool canvas + teal atmosphere (trust + energy without noise) */
+  /* h-full + min-h-0: fill flex row beside frozen sidebar; scroll happens on <main> only */
+  .app-shell-main {
+    @apply h-full min-h-0 bg-surface-page;
+    background-image:
+      radial-gradient(ellipse 900px 420px at 18% -5%, rgba(13, 148, 136, 0.09), transparent 52%),
+      radial-gradient(ellipse 700px 380px at 92% 8%, rgba(2, 132, 199, 0.05), transparent 48%),
+      linear-gradient(180deg, #F5F6FA 0%, #F0F1F5 100%);
+  }
+
+  .page-shell {
+    @apply mx-auto w-full max-w-6xl space-y-8 px-5 pb-14 pt-9 sm:px-8 lg:px-10;
+  }
+
+  .page-shell--narrow {
+    @apply max-w-3xl;
+  }
+
+  .page-shell--sm {
+    @apply max-w-4xl;
+  }
+
+  .page-shell--md {
+    @apply max-w-5xl;
+  }
+
+  .page-shell--lg {
+    @apply max-w-6xl;
+  }
+
+  .page-shell--tight {
+    @apply space-y-6 py-8;
+  }
+
+  .page-header-block {
+    @apply border-b border-black/[0.06] pb-8;
+  }
+
+  .text-heading {
+    @apply font-sans text-[17px] font-semibold tracking-[-0.018em] text-ink;
+  }
+
+  .text-micro {
+    @apply text-[11px] font-medium leading-tight;
+  }
+
+  .form-field-label {
+    @apply mb-1.5 block text-[13px] font-medium text-neutral-800;
+  }
+
+  /* Login / marketing rail — base color via theme() so @apply does not require nested bg-sidebar utilities */
+  .auth-rail {
+    @apply relative overflow-hidden;
+    background-color: theme("colors.sidebar.DEFAULT");
+    color: theme("colors.sidebar.ink");
+    background-image:
+      radial-gradient(ellipse 120% 80% at 10% 20%, rgba(13, 148, 136, 0.35), transparent 55%),
+      radial-gradient(ellipse 90% 60% at 90% 80%, rgba(2, 132, 199, 0.12), transparent 50%),
+      linear-gradient(165deg, #0f1014 0%, #16181d 48%, #0a0b0e 100%);
+  }
+
+  /* Nav icons: active state via aria-current (avoids NavLink render-prop children) */
+  .app-sidebar-nav a[aria-current="page"] .app-sidebar-icon {
+    color: theme("colors.primary.light");
+  }
+
+  .app-sidebar-nav a:not([aria-current="page"]) .app-sidebar-icon {
+    @apply text-zinc-500;
+  }
+
+  .app-sidebar-nav a:not([aria-current="page"]):hover .app-sidebar-icon {
+    @apply text-zinc-300;
   }
 }
 
@@ -18,25 +97,104 @@
   .text-display {
     @apply font-sans font-semibold tracking-tight text-ink;
   }
+
   .small-caps-label {
-    @apply text-[11px] font-medium uppercase tracking-[0.06em] text-ink-muted;
+    @apply mb-1.5 block text-[12px] font-medium uppercase tracking-[0.04em] text-ink-muted;
   }
+
   .page-headline {
-    @apply font-sans text-[28px] font-semibold leading-tight tracking-[-0.022em] text-ink sm:text-[32px];
+    @apply font-sans text-[28px] font-semibold leading-[1.12] tracking-[-0.028em] text-ink sm:text-[34px];
   }
+
   .page-lede {
-    @apply mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted;
+    @apply mt-2 max-w-2xl text-[15px] leading-[1.55] text-ink-muted;
   }
+
   .text-small {
     @apply text-sm leading-relaxed text-ink-muted;
   }
+
+  .text-body {
+    @apply text-[15px] leading-relaxed text-ink;
+  }
+
+  .text-body-strong {
+    @apply text-[15px] font-medium text-ink;
+  }
+
   .surface-card {
-    @apply rounded-2xl border border-black/[0.06] bg-surface-elevated shadow-card;
+    @apply rounded-2xl border border-black/[0.06] bg-surface-elevated shadow-card transition-shadow duration-[250ms];
   }
+
+  .surface-card-interactive {
+    @apply rounded-2xl border border-black/[0.06] bg-surface-elevated shadow-card transition-shadow duration-[250ms] hover:border-black/[0.08] hover:shadow-cardHover;
+  }
+
+  .surface-card-quiet {
+    @apply rounded-xl border border-black/[0.06] bg-surface-subtle;
+  }
+
   .input-modern {
-    @apply h-11 rounded-[10px] border border-black/[0.1] bg-white px-3 text-[15px] text-ink shadow-sm transition-shadow placeholder:text-neutral-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20;
+    @apply h-11 rounded-xl border border-black/[0.1] bg-white px-3.5 text-[15px] text-ink shadow-sm transition-all duration-200 placeholder:text-neutral-400 hover:border-black/[0.14] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25;
   }
+
   .btn-primary-solid {
-    @apply inline-flex h-11 items-center justify-center rounded-[10px] bg-primary px-5 text-[15px] font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:opacity-50;
+    @apply inline-flex h-11 min-h-[44px] items-center justify-center rounded-xl bg-primary px-5 text-[15px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md active:scale-[0.99] focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-secondary-solid {
+    @apply inline-flex h-11 min-h-[44px] items-center justify-center rounded-xl border border-black/[0.1] bg-white px-5 text-[15px] font-semibold text-ink shadow-sm transition-all duration-200 hover:border-black/[0.14] hover:bg-neutral-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .table-modern-wrap {
+    @apply overflow-x-auto rounded-xl border border-black/[0.06] bg-surface-elevated shadow-sm;
+  }
+
+  .table-modern {
+    @apply min-w-full border-collapse text-sm;
+  }
+
+  .table-modern thead tr {
+    @apply border-b border-black/[0.06] bg-neutral-50/90 text-left;
+  }
+
+  .table-modern th {
+    @apply px-3 py-2.5 text-[13px] font-medium text-ink-muted;
+  }
+
+  .table-modern tbody tr {
+    @apply border-b border-neutral-100 transition-colors duration-150 hover:bg-neutral-50/80;
+  }
+
+  .table-modern td {
+    @apply px-3 py-2.5 text-ink;
+  }
+
+  /*
+   * Revenue matrix — variance narrative: progressive disclosure (fine pointer = hover-only;
+   * touch / coarse = faint always-on affordance). Keeps delta numbers visually dominant.
+   */
+  .vc-narrative-hit {
+    @apply opacity-0 transition-[opacity,transform] duration-150 ease-out;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .group\/vc:hover .vc-narrative-hit {
+      @apply opacity-100;
+    }
+  }
+  /* Keyboard / focus: keep control visible when tabbing into the cell. */
+  .group\/vc:focus-within .vc-narrative-hit {
+    @apply opacity-100;
+  }
+  @media (pointer: coarse) {
+    .vc-narrative-hit {
+      @apply opacity-[0.42];
+    }
+    .group\/vc:active .vc-narrative-hit {
+      @apply opacity-100;
+    }
+  }
+  .vc-narrative-hit:focus-visible {
+    @apply opacity-100 outline-none ring-2 ring-primary/35 ring-offset-2 ring-offset-white;
   }
 }

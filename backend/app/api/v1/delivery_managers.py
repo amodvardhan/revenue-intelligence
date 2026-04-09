@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import DM_ASSIGNMENT_ROLES, get_current_user, org_role_allowed
+from app.core.deps import DM_ASSIGNMENT_ROLES, get_current_user, org_role_allowed, require_phase7_enabled
 from app.models.dimensions import DimCustomer
 from app.models.phase7 import CustomerDeliveryManagerAssignment
 from app.models.tenant import User
@@ -23,7 +23,11 @@ from app.schemas.delivery_manager import (
 )
 from app.services.access_scope import accessible_org_ids
 
-router = APIRouter(prefix="/delivery-managers", tags=["delivery-managers"])
+router = APIRouter(
+    prefix="/delivery-managers",
+    tags=["delivery-managers"],
+    dependencies=[Depends(require_phase7_enabled)],
+)
 
 
 @router.get(

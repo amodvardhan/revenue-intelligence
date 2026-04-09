@@ -79,20 +79,53 @@ export function LoginPage() {
   });
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#F5F5F7] px-5 py-12">
-      <div className="w-full max-w-[400px]">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-900 shadow-sm">
-            <LayoutGrid className="h-6 w-6 text-white" aria-hidden />
+    <div className="grid min-h-screen md:grid-cols-[minmax(300px,440px)_1fr]">
+      <aside className="auth-rail relative hidden flex-col justify-between p-10 lg:p-12 md:flex">
+        <div>
+          <div className="flex items-center gap-3.5">
+            <div className="relative">
+              <div className="absolute -inset-1 rounded-2xl bg-primary/40 blur-xl" aria-hidden />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-hover shadow-lg ring-1 ring-white/15">
+                <LayoutGrid className="h-7 w-7 text-white" aria-hidden />
+              </div>
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold tracking-tight text-white">Revenue Intelligence</p>
+              <p className="text-[13px] text-sidebar-muted">Governed revenue analytics</p>
+            </div>
           </div>
-          <h1 className="page-headline">Revenue Intelligence</h1>
-          <p className="page-lede">Sign in with your work email to open imports, analytics, and Ask.</p>
+          <h2 className="mt-14 max-w-[18ch] text-[28px] font-semibold leading-[1.15] tracking-[-0.03em] text-white lg:text-[32px]">
+            Clarity for every revenue decision.
+          </h2>
+          <p className="mt-5 max-w-sm text-[15px] leading-relaxed text-sidebar-muted">
+            Import actuals, explore rollups, and ask questions in plain language — with audit trails Finance and IT can
+            trust.
+          </p>
         </div>
+        <p className="text-[12px] text-sidebar-label">Natural language analytics · secure tenant data</p>
+      </aside>
 
-        <div className="rounded-2xl border border-black/[0.06] bg-white p-8 shadow-card">
+      <div className="app-shell-main flex flex-col justify-center px-5 py-12 md:px-12 lg:px-16">
+        <div className="mx-auto w-full max-w-[440px]">
+          <div className="mb-8 flex items-center gap-3 md:hidden">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-hover shadow-md ring-1 ring-black/10">
+              <LayoutGrid className="h-6 w-6 text-white" aria-hidden />
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold text-ink">Revenue Intelligence</p>
+              <p className="text-[13px] text-ink-muted">Sign in to continue</p>
+            </div>
+          </div>
+
+          <header className="mb-8">
+            <h1 className="page-headline">Sign in</h1>
+            <p className="page-lede mt-2 max-w-md">Use your work email and password. SSO is available when configured.</p>
+          </header>
+
+          <div className="surface-card p-8 sm:p-9">
           <form className="space-y-5" onSubmit={handleSubmit((v) => login.mutate(v))}>
             <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-neutral-800" htmlFor="email">
+              <label className="form-field-label" htmlFor="email">
                 Email
               </label>
               <input
@@ -104,7 +137,7 @@ export function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-neutral-800" htmlFor="password">
+              <label className="form-field-label" htmlFor="password">
                 Password
               </label>
               <input
@@ -116,19 +149,19 @@ export function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-neutral-800" htmlFor="tenant_name">
+              <label className="form-field-label" htmlFor="tenant_name">
                 Tenant name (register only)
               </label>
               <input id="tenant_name" className="input-modern h-11 w-full" {...register("tenant_name")} />
             </div>
             {(login.error || registerUser.error) && (
-              <p className="text-[13px] text-red-600">Request failed — check credentials or API.</p>
+              <p className="text-[13px] text-error">Request failed — check credentials or API.</p>
             )}
             {phase6 && defaultTenantId ? (
-              <div className="rounded-[10px] border border-black/[0.06] bg-surface-subtle p-4">
-                <p className="mb-3 text-[12px] font-medium text-neutral-700">Enterprise SSO (OIDC)</p>
+              <div className="rounded-xl border border-black/[0.06] bg-surface-subtle p-4">
+                <p className="mb-3 text-[13px] font-medium text-ink">Enterprise SSO (OIDC)</p>
                 <a
-                  className="flex h-11 w-full items-center justify-center rounded-[10px] border border-black/[0.1] bg-white text-[15px] font-medium text-neutral-900 shadow-sm transition hover:bg-neutral-50"
+                  className="btn-secondary-solid flex w-full px-4"
                   href={`${apiBase}/api/v1/auth/sso/oidc/login?tenant_id=${encodeURIComponent(defaultTenantId)}`}
                 >
                   Continue with SSO
@@ -139,14 +172,14 @@ export function LoginPage() {
               <button
                 type="submit"
                 disabled={login.isPending}
-                className="btn-primary-solid h-11 flex-1 px-4 disabled:cursor-not-allowed"
+                className="btn-primary-solid flex-1 px-4 disabled:cursor-not-allowed"
               >
                 {login.isPending ? "…" : "Continue"}
               </button>
               <button
                 type="button"
                 disabled={registerUser.isPending}
-                className="flex h-11 flex-1 items-center justify-center rounded-[10px] border border-black/[0.12] bg-white px-4 text-[15px] font-medium text-neutral-900 transition hover:bg-neutral-50 disabled:opacity-50"
+                className="btn-secondary-solid flex-1 px-4 disabled:cursor-not-allowed"
                 onClick={handleSubmit((v) => registerUser.mutate(v))}
               >
                 Register
@@ -158,6 +191,7 @@ export function LoginPage() {
               </Link>
             </p>
           </form>
+          </div>
         </div>
       </div>
     </div>

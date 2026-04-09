@@ -96,11 +96,11 @@ export function ExcelDropZone({ disabled, disabledReason, onFile, error }: Excel
             if (f) pick(f);
           }}
         />
-        <FileSpreadsheet className="mt-2 h-5 w-5 text-slate-400" aria-hidden />
+        <FileSpreadsheet className="mt-2 h-5 w-5 text-neutral-400" aria-hidden />
       </div>
       {error ? <p className="mt-2 text-sm text-error">{error}</p> : null}
       {disabled && disabledReason ? (
-        <p className="mt-2 text-xs text-slate-500">{disabledReason}</p>
+        <p className="mt-2 text-xs text-ink-muted">{disabledReason}</p>
       ) : null}
     </div>
   );

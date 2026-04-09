@@ -33,43 +33,50 @@ export function FxRatesPage() {
 
   if (!phase5) {
     return (
-      <div className="p-8">
-        <h1 className="text-display text-slate-900">FX rates</h1>
-        <p className="mt-2 text-sm text-slate-600">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API.</p>
+      <div className="page-shell page-shell--md page-shell--tight">
+        <h1 className="page-headline">FX rates</h1>
+        <p className="mt-2 text-sm text-ink-muted">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API to use this screen.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-display text-slate-900">FX rates</h1>
+    <div className="page-shell page-shell--md">
+      <header className="page-header-block">
+        <h1 className="page-headline">FX rates</h1>
+        <p className="page-lede max-w-2xl">
+          Manual upload v1 — POST /fx-rates/uploads with CSV (base, quote, effective_date, rate).
+        </p>
+      </header>
+
       {settings.data ? (
-        <p className="mt-2 text-sm text-slate-700">
-          Reporting currency: <strong>{settings.data.reporting_currency_code}</strong>
+        <p className="text-sm text-ink">
+          Reporting currency: <strong className="font-semibold">{settings.data.reporting_currency_code}</strong>
         </p>
       ) : null}
-      <p className="mt-2 text-sm text-slate-600">Manual upload v1 — POST /fx-rates/uploads with CSV (base, quote, effective_date, rate).</p>
-      {rates.isLoading ? <p className="mt-4 text-sm">Loading rates…</p> : null}
-      {rates.isError ? <p className="mt-4 text-sm text-red-600">Could not load rates.</p> : null}
-      <div className="mt-4 overflow-x-auto">
-        <table className="min-w-full text-sm">
+
+      {rates.isLoading ? <p className="text-sm text-ink-muted">Loading rates…</p> : null}
+      {rates.isError ? <p className="text-sm text-error">Could not load rates.</p> : null}
+
+      <div className="table-modern-wrap">
+        <table className="table-modern">
           <thead>
-            <tr className="border-b text-left text-slate-600">
-              <th className="py-2 pr-4">Pair</th>
-              <th className="py-2 pr-4">Effective</th>
-              <th className="py-2 pr-4">Rate</th>
-              <th className="py-2">Source</th>
+            <tr>
+              <th>Pair</th>
+              <th>Effective</th>
+              <th className="text-right">Rate</th>
+              <th>Source</th>
             </tr>
           </thead>
           <tbody>
             {(rates.data?.items ?? []).map((r, i) => (
-              <tr key={i} className="border-b border-slate-100">
-                <td className="py-2 pr-4 font-mono">
+              <tr key={i}>
+                <td className="font-mono text-[13px]">
                   {r.base_currency_code}/{r.quote_currency_code}
                 </td>
-                <td className="py-2 pr-4">{r.effective_date}</td>
-                <td className="py-2 pr-4 font-mono tabular-nums">{r.rate}</td>
-                <td className="py-2 text-slate-600">{r.rate_source}</td>
+                <td className="font-mono text-[13px]">{r.effective_date}</td>
+                <td className="text-right font-mono tabular-nums text-[13px]">{r.rate}</td>
+                <td className="text-ink-muted">{r.rate_source}</td>
               </tr>
             ))}
           </tbody>

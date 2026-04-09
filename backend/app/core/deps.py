@@ -287,6 +287,20 @@ async def require_phase5_enabled() -> None:
         )
 
 
+async def require_phase7_enabled() -> None:
+    if not get_settings().ENABLE_PHASE7:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "SERVICE_UNAVAILABLE",
+                    "message": "Phase 7 features are disabled",
+                    "details": None,
+                }
+            },
+        )
+
+
 async def require_phase5_upload_role(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),

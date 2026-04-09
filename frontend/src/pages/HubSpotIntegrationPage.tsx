@@ -82,15 +82,15 @@ export function HubSpotIntegrationPage() {
   const unhealthy = st?.status === "error" || st?.status === "token_refresh_failed";
 
   return (
-    <div className="space-y-8 p-8">
-      <div>
-        <h1 className="text-display text-slate-900">HubSpot integration</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+    <div className="page-shell page-shell--lg">
+      <header className="page-header-block">
+        <h1 className="page-headline">HubSpot integration</h1>
+        <p className="page-lede max-w-3xl">
           Connect HubSpot for CRM-sourced pipeline and deal data. Booked revenue actuals from Excel remain
           authoritative where the product policy applies; conflicts surface in reconciliation, not as silent
           overwrites.
         </p>
-      </div>
+      </header>
 
       {oauthMsg ? (
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -98,17 +98,17 @@ export function HubSpotIntegrationPage() {
         </div>
       ) : null}
 
-      <section className="rounded-lg border border-border bg-surface-elevated p-6 shadow-sm">
+      <section className="surface-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="rounded-md bg-primary-muted p-2">
+            <div className="rounded-xl bg-primary-muted p-2.5 ring-1 ring-primary/10">
               <Plug className="h-5 w-5 text-primary" aria-hidden />
             </div>
             <div>
-              <h2 className="text-heading font-semibold text-slate-900">Connection</h2>
+              <h2 className="text-heading">Connection</h2>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {statusQ.isLoading ? (
-                  <span className="inline-flex items-center gap-1 text-sm text-slate-600">
+                  <span className="inline-flex items-center gap-1 text-sm text-ink-muted">
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                     Loading status…
                   </span>
@@ -128,14 +128,14 @@ export function HubSpotIntegrationPage() {
                     {st?.status === "token_refresh_failed" ? "Token refresh failed" : "Error"}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-micro text-slate-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-micro text-ink-muted">
                     <Link2 className="h-3.5 w-3.5" aria-hidden />
                     Disconnected
                   </span>
                 )}
               </div>
               {st?.hubspot_portal_id ? (
-                <p className="mt-2 text-xs text-slate-500">Portal ID: {st.hubspot_portal_id}</p>
+                <p className="mt-2 font-mono text-xs text-ink-muted">Portal ID: {st.hubspot_portal_id}</p>
               ) : null}
               {st?.last_error ? (
                 <p className="mt-2 text-sm text-amber-800">{st.last_error}</p>
@@ -147,7 +147,7 @@ export function HubSpotIntegrationPage() {
               type="button"
               onClick={() => connectMut.mutate()}
               disabled={connectMut.isPending || connected}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn-primary-solid gap-2 px-4 py-2 text-sm disabled:cursor-not-allowed"
             >
               {connectMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {connected ? "Connected" : "Connect to HubSpot"}
@@ -156,7 +156,7 @@ export function HubSpotIntegrationPage() {
               type="button"
               onClick={() => disconnectMut.mutate()}
               disabled={!connected || disconnectMut.isPending}
-              className="rounded-md border border-border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn-secondary-solid px-4 py-2 text-sm disabled:cursor-not-allowed"
             >
               Disconnect
             </button>
@@ -164,9 +164,9 @@ export function HubSpotIntegrationPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-border bg-surface-elevated p-6 shadow-sm">
-        <h2 className="text-heading font-semibold text-slate-900">Sync</h2>
-        <p className="mt-1 text-sm text-slate-600">
+      <section className="surface-card p-6">
+        <h2 className="text-heading">Sync</h2>
+        <p className="mt-1 text-sm text-ink-muted">
           Manual sync runs in the background. Use sync history for governance and correlation IDs.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -174,7 +174,7 @@ export function HubSpotIntegrationPage() {
             type="button"
             onClick={() => syncMut.mutate()}
             disabled={!connected || syncMut.isPending}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary-solid gap-2 px-4 py-2 text-sm disabled:cursor-not-allowed"
           >
             {syncMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Sync now
@@ -186,40 +186,40 @@ export function HubSpotIntegrationPage() {
       </section>
 
       <section>
-        <h2 className="text-heading font-semibold text-slate-900">Sync history</h2>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-border bg-slate-50 text-xs uppercase text-slate-600">
-              <tr>
-                <th className="px-4 py-2">Started</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Rows</th>
-                <th className="px-4 py-2">Correlation</th>
+        <h2 className="text-heading">Sync history</h2>
+        <div className="table-modern-wrap mt-3">
+          <table className="table-modern text-left">
+            <thead>
+              <tr className="border-b border-black/[0.06] bg-neutral-50/90 text-left text-[13px] font-semibold text-ink-muted">
+                <th className="px-4 py-2.5">Started</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Rows</th>
+                <th className="px-4 py-2.5">Correlation</th>
               </tr>
             </thead>
             <tbody>
               {runsQ.isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={4} className="px-4 py-6 text-center text-ink-muted">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   </td>
                 </tr>
               ) : runsQ.data?.length ? (
                 runsQ.data.map((r) => (
-                  <tr key={r.sync_run_id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 tabular-nums text-slate-800">{r.started_at}</td>
-                    <td className="px-4 py-2">{r.status}</td>
-                    <td className="px-4 py-2 tabular-nums text-slate-700">
+                  <tr key={r.sync_run_id} className="border-b border-neutral-100 last:border-0">
+                    <td className="px-4 py-2.5 font-mono text-sm tabular-nums text-ink">{r.started_at}</td>
+                    <td className="px-4 py-2.5">{r.status}</td>
+                    <td className="px-4 py-2.5 font-mono text-sm tabular-nums text-ink-muted">
                       {r.rows_loaded} loaded / {r.rows_failed} failed / {r.rows_fetched} fetched
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-600">
+                    <td className="px-4 py-2.5 font-mono text-xs text-ink-muted">
                       {r.correlation_id ?? "—"}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={4} className="px-4 py-6 text-center text-ink-muted">
                     No sync runs yet.
                   </td>
                 </tr>

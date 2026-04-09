@@ -10,6 +10,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import config as config_module
 from app.core.security import create_access_token, hash_password
 from app.models.dimensions import DimCustomer, DimOrganization, UserOrgRole
 from app.models.facts import FactRevenue
@@ -66,26 +67,31 @@ async def _seed_two_users_org_customer(session: AsyncSession) -> tuple[str, str,
 
 @pytest.mark.asyncio
 async def test_assign_and_list_delivery_manager(
-    async_client: AsyncClient, db_session: AsyncSession
+    async_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    token, org_id, customer_id, dm_id = await _seed_two_users_org_customer(db_session)
+    monkeypatch.setenv("ENABLE_PHASE7", "true")
+    config_module.get_settings.cache_clear()
+    try:
+        token, org_id, customer_id, dm_id = await _seed_two_users_org_customer(db_session)
 
-    r = await async_client.put(
-        "/api/v1/delivery-managers/assignments",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"org_id": org_id, "customer_id": customer_id, "delivery_manager_user_id": dm_id},
-    )
-    assert r.status_code == 200
-    row = r.json()
-    assert row["delivery_manager_user_id"] == dm_id
-    assert row["customer_id"] == customer_id
+        r = await async_client.put(
+            "/api/v1/delivery-managers/assignments",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"org_id": org_id, "customer_id": customer_id, "delivery_manager_user_id": dm_id},
+        )
+        assert r.status_code == 200
+        row = r.json()
+        assert row["delivery_manager_user_id"] == dm_id
+        assert row["customer_id"] == customer_id
 
-    r2 = await async_client.get(
-        "/api/v1/delivery-managers/assignments",
-        params={"org_id": org_id},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert r2.status_code == 200
-    items = r2.json()["items"]
-    assert len(items) == 1
-    assert items[0]["delivery_manager_email"].startswith("dm-")
+        r2 = await async_client.get(
+            "/api/v1/delivery-managers/assignments",
+            params={"org_id": org_id},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r2.status_code == 200
+        items = r2.json()["items"]
+        assert len(items) == 1
+        assert items[0]["delivery_manager_email"].startswith("dm-")
+    finally:
+        config_module.get_settings.cache_clear()

@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { api } from "@/services/api";
+
+const phase7 = import.meta.env.VITE_ENABLE_PHASE7 === "true";
 
 interface OrgList {
   items: Array<{ org_id: string; org_name: string }>;
@@ -25,6 +28,16 @@ interface AssignmentRow {
   delivery_manager_user_id: string;
   delivery_manager_email: string;
   valid_from: string;
+}
+
+interface VariancePromptItem {
+  customer_id: string;
+  customer_legal: string;
+  revenue_month: string;
+  month_label: string;
+  mom_delta: string | null;
+  yoy_delta: string | null;
+  currency_code: string;
 }
 
 export function DeliveryManagersPage() {
@@ -64,6 +77,7 @@ export function DeliveryManagersPage() {
       const { data } = await api.get<{ items: TenantUserItem[] }>("/api/v1/delivery-managers/tenant-users");
       return data;
     },
+    enabled: phase7,
   });
 
   const assignments = useQuery({
@@ -74,7 +88,18 @@ export function DeliveryManagersPage() {
       });
       return data;
     },
-    enabled: Boolean(orgId),
+    enabled: phase7 && Boolean(orgId),
+  });
+
+  const variancePrompts = useQuery({
+    queryKey: ["variance-comment-prompts", orgId],
+    queryFn: async () => {
+      const { data } = await api.get<{ items: VariancePromptItem[] }>("/api/v1/revenue/variance-comment-prompts", {
+        params: { org_id: orgId },
+      });
+      return data;
+    },
+    enabled: phase7 && Boolean(orgId),
   });
 
   const assign = useMutation({
@@ -95,19 +120,31 @@ export function DeliveryManagersPage() {
     },
   });
 
+  if (!phase7) {
+    return (
+      <div className="page-shell page-shell--md">
+        <h1 className="page-headline">Delivery managers</h1>
+        <p className="mt-2 text-sm text-ink-muted">
+          Set VITE_ENABLE_PHASE7=true and ENABLE_PHASE7=true on the API to use this screen.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-6 py-10">
-      <header className="border-b border-black/[0.06] pb-8">
+    <div className="page-shell page-shell--md">
+      <header className="page-header-block">
         <h1 className="page-headline">Delivery managers</h1>
         <p className="page-lede">
           Map each customer to a directory user (delivery manager). Replacing a DM closes the previous assignment; revenue
-          data stays with the customer and is attributed to the current DM for operations.
+          data stays with the customer and is attributed to the current DM for operations. When revenue moves month over
+          month or year over year, you will see prompts below to add a short variance narrative on the Revenue matrix.
         </p>
       </header>
 
       <div className="surface-card flex flex-wrap items-end gap-4 p-5">
         <div className="min-w-[220px]">
-          <label className="small-caps-label mb-1.5 block">Organization</label>
+          <label className="form-field-label">Organization</label>
           <select
             className="input-modern !h-10 w-full"
             value={orgId}
@@ -124,6 +161,50 @@ export function DeliveryManagersPage() {
         </div>
       </div>
 
+      {orgId && variancePrompts.isSuccess && variancePrompts.data.items.length > 0 ? (
+        <div
+          className="surface-card border-l-[3px] border-l-primary p-5 shadow-card"
+          role="region"
+          aria-label="Variance narratives to complete"
+        >
+          <h2 className="text-heading text-[15px]">Revenue narratives to add</h2>
+          <p className="mt-1 max-w-2xl text-xs text-ink-muted">
+            These customer-months have material month-over-month or year-over-year movement and no narrative yet. Open
+            Revenue to explain the change on the delta row (below the green or red amount).
+          </p>
+          <ul className="mt-4 space-y-2">
+            {variancePrompts.data.items.map((p) => (
+              <li key={`${p.customer_id}-${p.revenue_month}`}>
+                <Link
+                  to={`/revenue?org_id=${encodeURIComponent(orgId)}&vc_customer=${encodeURIComponent(p.customer_id)}&vc_month=${encodeURIComponent(p.revenue_month)}`}
+                  className="flex flex-col gap-1 rounded-xl border border-black/[0.06] bg-neutral-50/90 px-4 py-3 transition-colors hover:bg-teal-50/45 focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/30 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-ink">
+                      {p.customer_legal} · {p.month_label}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {p.mom_delta != null ? (
+                        <>
+                          MoM {p.mom_delta} {p.currency_code}
+                        </>
+                      ) : null}
+                      {p.mom_delta != null && p.yoy_delta != null ? " · " : null}
+                      {p.yoy_delta != null ? (
+                        <>
+                          YoY {p.yoy_delta} {p.currency_code}
+                        </>
+                      ) : null}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-primary sm:shrink-0">Open revenue</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {banner ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950" role="status">
           {banner}
@@ -132,10 +213,10 @@ export function DeliveryManagersPage() {
 
       {orgId ? (
         <div className="surface-card space-y-4 p-6">
-          <h2 className="text-sm font-semibold text-ink">Assign or change DM</h2>
+          <h2 className="text-heading text-[15px]">Assign or change DM</h2>
           <div className="flex flex-wrap items-end gap-4">
             <div className="min-w-[220px] flex-1">
-              <label className="small-caps-label mb-1.5 block">Customer</label>
+              <label className="form-field-label">Customer</label>
               <select
                 className="input-modern !h-10 w-full"
                 value={assignCustomerId}
@@ -151,7 +232,7 @@ export function DeliveryManagersPage() {
               </select>
             </div>
             <div className="min-w-[220px] flex-1">
-              <label className="small-caps-label mb-1.5 block">Delivery manager (user)</label>
+              <label className="form-field-label">Delivery manager (user)</label>
               <select
                 className="input-modern !h-10 w-full"
                 value={assignUserId}

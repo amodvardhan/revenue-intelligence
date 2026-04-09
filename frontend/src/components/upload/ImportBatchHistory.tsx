@@ -26,7 +26,7 @@ function StatusIcon({ status }: { status: string }) {
 export function ImportBatchHistory({ items, loading, error, onRetry }: ImportBatchHistoryProps) {
   return (
     <section className="mt-8 space-y-3">
-      <div className="flex items-center gap-2 text-heading text-base font-semibold text-slate-900">
+      <div className="flex items-center gap-2 text-heading">
         <History className="h-5 w-5" aria-hidden />
         Recent imports
       </div>
@@ -43,7 +43,7 @@ export function ImportBatchHistory({ items, loading, error, onRetry }: ImportBat
       {loading ? (
         <div className="h-24 animate-pulse rounded border border-border bg-white" />
       ) : items.length === 0 ? (
-        <p className="text-sm text-slate-500">No imports yet — upload a file above.</p>
+        <p className="text-sm text-ink-muted">No imports yet — upload a file above.</p>
       ) : (
         <div className="overflow-x-auto rounded-md border border-border bg-white">
           <table className="min-w-full text-sm">
@@ -66,7 +66,7 @@ export function ImportBatchHistory({ items, loading, error, onRetry }: ImportBat
                     </span>
                   </td>
                   <td className="px-3 py-2">{b.filename ?? "—"}</td>
-                  <td className="px-3 py-2 text-slate-600">
+                  <td className="px-3 py-2 text-ink-muted">
                     {b.completed_at ? new Date(b.completed_at).toLocaleString() : "—"}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">

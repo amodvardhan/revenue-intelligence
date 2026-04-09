@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     ENABLE_PHASE5: bool = False
 
+    ENABLE_PHASE7: bool = False
+
     ENABLE_SSO: bool = True
     """Public URL of this API (no trailing slash) — used for OIDC redirect_uri and SAML ACS."""
     PUBLIC_API_BASE_URL: str = "http://127.0.0.1:8000"

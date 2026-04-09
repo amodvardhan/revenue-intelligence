@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, MessageSquarePlus, Pencil } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Area,
   AreaChart,
@@ -12,6 +14,8 @@ import {
 } from "recharts";
 
 import { api } from "@/services/api";
+
+const phase7 = import.meta.env.VITE_ENABLE_PHASE7 === "true";
 
 function parseAmountStr(v: string): number {
   const n = parseFloat(String(v).replace(/,/g, ""));
@@ -51,6 +55,9 @@ interface MatrixLine {
   customer_legal: string;
   customer_common: string | null;
   amounts: string[];
+  amounts_editable?: boolean;
+  variance_comments?: (string | null)[] | null;
+  variance_comments_editable?: boolean;
 }
 
 interface RevenueMatrixResponse {
@@ -71,14 +78,18 @@ interface DivisionItem {
   division_name: string;
 }
 
+const MATRIX_DENSITY_KEY = "revenue-matrix-density";
+
 function MatrixAmountInput({
   amount,
   disabled,
   onCommit,
+  compact,
 }: {
   amount: string;
   disabled?: boolean;
   onCommit: (next: string) => void;
+  compact?: boolean;
 }) {
   const [v, setV] = useState(amount);
   useEffect(() => setV(amount), [amount]);
@@ -86,7 +97,9 @@ function MatrixAmountInput({
     <input
       type="text"
       inputMode="decimal"
-      className="w-full min-w-[5.5rem] rounded border border-transparent bg-transparent px-1 py-0.5 text-right font-mono text-[13px] tabular-nums text-ink hover:border-black/[0.08] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+      className={`box-border w-full max-h-full rounded border border-transparent bg-transparent px-1 text-right font-mono tabular-nums text-ink hover:border-black/[0.08] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 ${
+        compact ? "min-w-[4.25rem] py-0 text-[11px] leading-none" : "min-w-[5.5rem] py-0.5 text-[13px]"
+      }`}
       value={v}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
@@ -114,22 +127,192 @@ function MomDeltaCell({ value }: { value: string }) {
   const pos = n > 0;
   return (
     <span
-      className={`inline-flex items-center justify-end gap-1 font-mono tabular-nums ${
+      className={`inline-flex max-h-full items-center justify-end gap-0.5 whitespace-nowrap font-mono text-[11px] leading-none tabular-nums ${
         pos ? "text-emerald-700" : "text-red-700"
       }`}
     >
-      {pos ? <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden /> : <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+      {pos ? <ArrowUp className="h-3 w-3 shrink-0" aria-hidden /> : <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />}
       {value}
     </span>
   );
 }
 
+const VARIANCE_MAX = 4000;
+
+function VarianceNarrativeBlock({
+  children,
+  narrative,
+  editable,
+  focusKey,
+  onSave,
+  isSaving,
+}: {
+  children: ReactNode;
+  narrative: string | null | undefined;
+  editable: boolean;
+  focusKey: string;
+  onSave: (text: string) => Promise<void>;
+  isSaving: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(narrative ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setDraft(narrative ?? "");
+  }, [narrative]);
+
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const t = window.setTimeout(() => textareaRef.current?.focus(), 50);
+    return () => {
+      document.body.style.overflow = prev;
+      window.clearTimeout(t);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isSaving) setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, isSaving]);
+
+  const hasText = Boolean(narrative?.trim());
+
+  const modal =
+    open &&
+    createPortal(
+      <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center">
+        <button
+          type="button"
+          className="absolute inset-0 z-0 cursor-default bg-[rgb(15_23_42/0.35)] backdrop-blur-[3px] transition-opacity"
+          aria-label="Close dialog"
+          disabled={isSaving}
+          onClick={() => !isSaving && setOpen(false)}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="variance-narrative-title"
+          className="relative z-10 flex max-h-[min(92vh,34rem)] w-full max-w-[min(100vw,26rem)] flex-col overflow-hidden rounded-t-[1.25rem] border border-black/[0.08] bg-white shadow-[0_25px_50px_-12px_rgba(15,23,42,0.22)] sm:mx-4 sm:rounded-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <header className="shrink-0 border-b border-black/[0.06] px-5 pb-4 pt-5 text-left">
+            <h3 id="variance-narrative-title" className="text-heading text-[17px]">
+              Explain this change
+            </h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-muted">
+              Describe why revenue moved versus the prior month. This appears with your matrix for finance and delivery
+              leadership.
+            </p>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <label htmlFor="variance-narrative-field" className="sr-only">
+              Variance explanation
+            </label>
+            <textarea
+              id="variance-narrative-field"
+              ref={textareaRef}
+              className="input-modern box-border min-h-[148px] w-full resize-y py-3 font-sans text-[15px] leading-relaxed"
+              maxLength={VARIANCE_MAX}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Example: milestone invoice in February; prior month was ramp-up only."
+            />
+            <div className="mt-2 flex justify-end">
+              <span className="text-[12px] tabular-nums text-neutral-500">
+                {draft.length.toLocaleString()} / {VARIANCE_MAX.toLocaleString()}
+              </span>
+            </div>
+          </div>
+          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-black/[0.06] bg-neutral-50/80 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <button type="button" className="btn-secondary-solid min-w-[5.5rem] px-5" disabled={isSaving} onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary-solid min-w-[5.5rem] px-5"
+              disabled={isSaving}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    await onSave(draft.trim());
+                    setOpen(false);
+                  } catch {
+                    /* parent surfaces error */
+                  }
+                })();
+              }}
+            >
+              {isSaving ? "Saving…" : "Save"}
+            </button>
+          </footer>
+        </div>
+      </div>,
+      document.body,
+    );
+
+  return (
+    <>
+      <div className="flex w-full min-w-0 items-center gap-0" data-vc-focus={focusKey}>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 overflow-hidden">
+          {children}
+          {hasText ? (
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_0_2px_rgba(255,255,255,0.96)]"
+              title={narrative ?? "Explanation on file"}
+              aria-label="Explanation recorded for this month"
+            />
+          ) : null}
+        </div>
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center">
+          {editable ? (
+            <button
+              type="button"
+              className="vc-narrative-hit flex h-7 w-7 items-center justify-center rounded-full border border-black/[0.08] bg-white/95 text-primary shadow-sm hover:border-primary/25 hover:bg-teal-50/40"
+              title={hasText ? "Edit explanation" : "Add explanation"}
+              aria-label={hasText ? "Edit variance explanation" : "Add variance explanation"}
+              disabled={isSaving}
+              onClick={() => setOpen(true)}
+            >
+              {hasText ? (
+                <Pencil className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+              ) : (
+                <MessageSquarePlus className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+              )}
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {modal}
+    </>
+  );
+}
+
 export function RevenuePage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const vcScrollDone = useRef(false);
   const [orgId, setOrgId] = useState<string>("");
   const [businessUnitId, setBusinessUnitId] = useState<string>("");
   const [divisionId, setDivisionId] = useState<string>("");
   const [matrixNote, setMatrixNote] = useState<string | null>(null);
+  const [matrixHoverRow, setMatrixHoverRow] = useState<number | null>(null);
+  const [matrixDensity, setMatrixDensity] = useState<"compact" | "comfortable">(() => {
+    if (typeof window === "undefined") return "compact";
+    const v = window.localStorage.getItem(MATRIX_DENSITY_KEY);
+    return v === "comfortable" ? "comfortable" : "compact";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(MATRIX_DENSITY_KEY, matrixDensity);
+  }, [matrixDensity]);
 
   const orgs = useQuery({
     queryKey: ["organizations"],
@@ -141,10 +324,22 @@ export function RevenuePage() {
 
   const firstOrg = orgs.data?.items[0]?.org_id;
   useEffect(() => {
+    const fromUrl = searchParams.get("org_id");
+    if (fromUrl) {
+      setOrgId(fromUrl);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("org_id")) return;
     if (firstOrg && !orgId) {
       setOrgId(firstOrg);
     }
-  }, [firstOrg, orgId]);
+  }, [firstOrg, orgId, searchParams]);
+
+  useEffect(() => {
+    vcScrollDone.current = false;
+  }, [orgId]);
 
   useEffect(() => {
     setBusinessUnitId("");
@@ -163,7 +358,7 @@ export function RevenuePage() {
       });
       return data;
     },
-    enabled: Boolean(orgId),
+    enabled: phase7 && Boolean(orgId),
   });
 
   const divisions = useQuery({
@@ -174,7 +369,7 @@ export function RevenuePage() {
       });
       return data;
     },
-    enabled: Boolean(businessUnitId),
+    enabled: phase7 && Boolean(businessUnitId),
   });
 
   const matrix = useQuery({
@@ -186,8 +381,28 @@ export function RevenuePage() {
       const { data } = await api.get<RevenueMatrixResponse>("/api/v1/revenue/matrix", { params });
       return data;
     },
-    enabled: Boolean(orgId),
+    enabled: phase7 && Boolean(orgId),
   });
+
+  useEffect(() => {
+    if (!phase7 || !matrix.isSuccess || !matrix.data || vcScrollDone.current) return;
+    const c = searchParams.get("vc_customer");
+    const m = searchParams.get("vc_month");
+    if (!c || !m) return;
+    const key = `${c}:${m}`;
+    const handle = window.setTimeout(() => {
+      const el = document.querySelector(`[data-vc-focus="${key}"]`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        vcScrollDone.current = true;
+        const next = new URLSearchParams(searchParams);
+        next.delete("vc_customer");
+        next.delete("vc_month");
+        navigate({ pathname: "/revenue", search: next.toString() }, { replace: true });
+      }
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [phase7, matrix.isSuccess, matrix.data, searchParams, navigate]);
 
   const saveMatrixCell = useMutation({
     mutationFn: async (payload: {
@@ -210,6 +425,28 @@ export function RevenuePage() {
     },
   });
 
+  const saveVarianceComment = useMutation({
+    mutationFn: async (payload: {
+      org_id: string;
+      customer_id: string;
+      revenue_month: string;
+      comment_text: string;
+      business_unit_id: string | null;
+      division_id: string | null;
+    }) => {
+      const { data } = await api.put<RevenueMatrixResponse>("/api/v1/revenue/matrix/variance-comment", payload);
+      return data;
+    },
+    onSuccess: () => {
+      setMatrixNote(null);
+      void queryClient.invalidateQueries({ queryKey: ["revenue-matrix", orgId, businessUnitId, divisionId] });
+      void queryClient.invalidateQueries({ queryKey: ["variance-comment-prompts"] });
+    },
+    onError: () => {
+      setMatrixNote("Could not save variance narrative. Check permissions and length (max 4000 characters).");
+    },
+  });
+
   const revenue = useQuery({
     queryKey: ["revenue", orgId],
     queryFn: async () => {
@@ -218,14 +455,22 @@ export function RevenuePage() {
       const { data } = await api.get<RevenueListResponse>("/api/v1/revenue", { params });
       return data;
     },
-    enabled: Boolean(orgId) && matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts",
+    enabled:
+      Boolean(orgId) &&
+      (!phase7 || (matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts")),
   });
 
   const showMatrix =
+    phase7 &&
     matrix.isSuccess &&
     matrix.data &&
     matrix.data.empty_reason !== "no_customer_facts" &&
     matrix.data.lines.length > 0;
+
+  const showCustomerFactsDetail =
+    Boolean(orgId) &&
+    revenue.isSuccess &&
+    (!phase7 || (matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts"));
 
   const matrixChartSeries = useMemo(() => {
     if (!matrix.data?.month_columns?.length || !matrix.data.lines.length) return [];
@@ -275,6 +520,24 @@ export function RevenuePage() {
       .reduce((s, a) => s + parseAmountStr(a), 0);
   }, [showMatrix, matrix.data]);
 
+  const matrixStyle = useMemo(() => {
+    const compact = matrixDensity === "compact";
+    /* Fixed row heights keep the split left/right tables pixel-aligned (independent row layout was drifting). */
+    const rowHe = compact ? "h-9 min-h-[2.25rem] max-h-[2.25rem]" : "h-11 min-h-[2.75rem] max-h-[2.75rem]";
+    return {
+      compact,
+      leftPane: compact ? "w-[19rem]" : "w-[26rem]",
+      rowHe,
+      thPad: compact ? "px-2" : "px-3",
+      thText: compact ? "text-[10px] font-semibold tracking-tight" : "text-xs font-semibold",
+      tdPad: compact ? "px-2" : "px-3",
+      tdSr: compact ? "text-[11px] leading-none" : "text-xs leading-none",
+      tdBody: compact ? "text-[11px] leading-none" : "text-[13px] leading-none",
+      tdMono: compact ? "text-[11px] leading-none" : "text-[13px] leading-none",
+      monthTh: compact ? "text-[10px] leading-none" : "text-[11px] leading-none",
+    };
+  }, [matrixDensity]);
+
   const chartTooltip = {
     contentStyle: {
       borderRadius: "12px",
@@ -284,19 +547,31 @@ export function RevenuePage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-6 py-10">
-      <header className="border-b border-black/[0.06] pb-8">
+    <div className="page-shell">
+      <header className="page-header-block">
         <h1 className="page-headline">Revenue</h1>
         <p className="page-lede">
-          Customer–month matrix matches the EUROPE workbook when facts include customers. Value rows are editable to fix
-          imports or enter monthly totals (MoM change recalculates below). Optional BU and division narrow the grid. Facts
-          without a customer still appear in the detail table when the matrix is empty.
+          {phase7 ? (
+            <>
+              Customer–month matrix matches the EUROPE workbook when facts include customers. Finance and delivery managers
+              assigned to a customer can enter monthly totals at organization scope when spreadsheet import is not used
+              (MoM change recalculates on the row below). Hover a change to add or edit an explanation; a teal dot means a note is saved. On touch, a faint icon stays visible—tap to edit.
+              Optional BU and division narrow the grid for viewing; assigned DMs edit at organization scope only. Facts
+              without a customer still appear in the detail table when the matrix is empty.
+            </>
+          ) : (
+            <>
+              Revenue facts for the selected organization. Enable Phase 7 on the API and{" "}
+              <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-[13px]">VITE_ENABLE_PHASE7=true</code>{" "}
+              for the customer–month matrix and manual cell overrides.
+            </>
+          )}
         </p>
       </header>
 
       <div className="surface-card flex flex-wrap items-end gap-4 p-5">
         <div className="min-w-[220px]">
-          <label className="small-caps-label mb-1.5 block">Organization</label>
+          <label className="form-field-label">Organization</label>
           <select
             className="input-modern !h-10 w-full"
             value={orgId}
@@ -311,41 +586,45 @@ export function RevenuePage() {
             ))}
           </select>
         </div>
-        <div className="min-w-[200px]">
-          <label className="small-caps-label mb-1.5 block">Business unit</label>
-          <select
-            className="input-modern !h-10 w-full"
-            value={businessUnitId}
-            onChange={(e) => setBusinessUnitId(e.target.value)}
-            disabled={!orgId || businessUnits.isLoading}
-          >
-            <option value="">All (organization total)</option>
-            {businessUnits.data?.items.map((b) => (
-              <option key={b.business_unit_id} value={b.business_unit_id}>
-                {b.business_unit_name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="min-w-[200px]">
-          <label className="small-caps-label mb-1.5 block">Division</label>
-          <select
-            className="input-modern !h-10 w-full"
-            value={divisionId}
-            onChange={(e) => setDivisionId(e.target.value)}
-            disabled={!businessUnitId || divisions.isLoading}
-          >
-            <option value="">All in BU</option>
-            {divisions.data?.items.map((d) => (
-              <option key={d.division_id} value={d.division_id}>
-                {d.division_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {phase7 ? (
+          <>
+            <div className="min-w-[200px]">
+              <label className="form-field-label">Business unit</label>
+              <select
+                className="input-modern !h-10 w-full"
+                value={businessUnitId}
+                onChange={(e) => setBusinessUnitId(e.target.value)}
+                disabled={!orgId || businessUnits.isLoading}
+              >
+                <option value="">All (organization total)</option>
+                {businessUnits.data?.items.map((b) => (
+                  <option key={b.business_unit_id} value={b.business_unit_id}>
+                    {b.business_unit_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[200px]">
+              <label className="form-field-label">Division</label>
+              <select
+                className="input-modern !h-10 w-full"
+                value={divisionId}
+                onChange={(e) => setDivisionId(e.target.value)}
+                disabled={!businessUnitId || divisions.isLoading}
+              >
+                <option value="">All in BU</option>
+                {divisions.data?.items.map((d) => (
+                  <option key={d.division_id} value={d.division_id}>
+                    {d.division_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : null}
       </div>
 
-      {matrix.isError ? (
+      {phase7 && matrix.isError ? (
         <div
           className="rounded-xl border border-red-200 bg-red-50/90 px-4 py-3 text-sm text-red-800 shadow-sm"
           role="alert"
@@ -367,7 +646,7 @@ export function RevenuePage() {
         </div>
       ) : null}
 
-      {orgId && matrix.isLoading ? <p className="text-sm font-medium text-ink-muted">Loading…</p> : null}
+      {phase7 && orgId && matrix.isLoading ? <p className="text-sm font-medium text-ink-muted">Loading…</p> : null}
 
       {orgId && showMatrix && matrix.data ? (
         <>
@@ -436,87 +715,242 @@ export function RevenuePage() {
             </div>
           ) : null}
 
-          <div className="overflow-x-auto rounded-2xl border border-border/60 bg-white shadow-card">
-            <table className="min-w-max divide-y divide-border text-sm">
-              <thead className="sticky top-0 z-10 bg-surface-subtle/95 text-left text-xs font-semibold text-ink">
-                <tr>
-                  <th className="sticky left-0 z-20 border-b border-border bg-surface-subtle px-3 py-3 font-medium">
-                    Sr. No.
-                  </th>
-                  <th className="sticky left-[4.5rem] z-20 border-b border-border bg-surface-subtle px-3 py-3 font-medium shadow-[2px_0_8px_rgba(0,0,0,0.04)]">
-                    Customer Name
-                  </th>
-                  <th className="sticky left-[14rem] z-20 border-b border-border bg-surface-subtle px-3 py-3 font-medium shadow-[2px_0_8px_rgba(0,0,0,0.04)]">
-                    Customer Name
-                  </th>
-                  {matrix.data.month_columns.map((c) => (
-                    <th
-                      key={c.key}
-                      className="whitespace-nowrap border-b border-border px-2 py-3 text-right font-mono text-[11px] font-medium tracking-tight text-ink"
-                    >
-                      {c.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {matrix.data.lines.map((line, idx) => (
-                  <tr
-                    key={`${line.row_type}-${idx}`}
-                    className={
-                      line.row_type === "delta"
-                        ? "bg-neutral-50/90 text-ink-muted"
-                        : "transition-colors hover:bg-teal-50/30"
-                    }
-                  >
-                    <td className="sticky left-0 z-10 whitespace-nowrap border-b border-border bg-white px-3 py-2 font-mono text-xs text-ink">
-                      {line.sr_no != null ? line.sr_no : ""}
-                    </td>
-                    <td className="sticky left-[4.5rem] z-10 max-w-[10rem] border-b border-border bg-white px-3 py-2 text-[13px] text-ink shadow-[2px_0_8px_rgba(0,0,0,0.04)]">
-                      {line.customer_legal}
-                    </td>
-                    <td className="sticky left-[14rem] z-10 max-w-[8rem] border-b border-border bg-white px-3 py-2 text-[13px] text-ink-muted shadow-[2px_0_8px_rgba(0,0,0,0.04)]">
-                      {line.customer_common ?? ""}
-                    </td>
-                    {line.amounts.map((cell, j) => (
-                      <td
-                        key={j}
-                        className={`whitespace-nowrap border-b border-border px-2 py-2 text-right font-mono text-[13px] tabular-nums ${
-                          line.row_type === "delta" ? "text-ink-muted" : "text-ink"
-                        }`}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-heading text-[16px]">Customer–month matrix</h2>
+                <p className="mt-0.5 max-w-xl text-xs text-ink-muted">
+                  Frozen row labels in the left pane; only months scroll on the right — nothing slides under the label
+                  columns. Use density to fit more months on screen.
+                </p>
+              </div>
+              <div
+                className="inline-flex shrink-0 rounded-xl border border-black/[0.08] bg-neutral-50/90 p-0.5 shadow-sm"
+                role="group"
+                aria-label="Matrix row density"
+              >
+                <button
+                  type="button"
+                  className={`rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                    matrixDensity === "compact"
+                      ? "bg-white text-ink shadow-sm"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                  onClick={() => setMatrixDensity("compact")}
+                >
+                  Compact
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                    matrixDensity === "comfortable"
+                      ? "bg-white text-ink shadow-sm"
+                      : "text-ink-muted hover:text-ink"
+                  }`}
+                  onClick={() => setMatrixDensity("comfortable")}
+                >
+                  Comfortable
+                </button>
+              </div>
+            </div>
+
+            <div
+              className="flex max-w-full overflow-hidden rounded-2xl border border-border/60 bg-white shadow-card"
+              onMouseLeave={() => setMatrixHoverRow(null)}
+            >
+              <div
+                className={`shrink-0 border-r border-neutral-200 bg-neutral-100 shadow-[6px_0_16px_-8px_rgba(0,0,0,0.15)] ${matrixStyle.leftPane}`}
+              >
+                <table className="w-full table-fixed border-collapse text-sm">
+                  <colgroup>
+                    <col className={matrixStyle.compact ? "w-[2.75rem]" : "w-[4rem]"} />
+                    <col className={matrixStyle.compact ? "w-[9rem]" : "w-[11rem]"} />
+                    <col />
+                  </colgroup>
+                  <thead className="sticky top-0 z-20 bg-neutral-100">
+                    <tr>
+                      <th
+                        className={`${matrixStyle.thPad} ${matrixStyle.rowHe} align-middle overflow-hidden border-b border-border text-left ${matrixStyle.thText} text-ink`}
+                        scope="col"
                       >
-                        {line.row_type === "delta" ? (
-                          cell === "" ? null : <MomDeltaCell value={cell} />
-                        ) : line.customer_id && matrix.data.month_columns[j] ? (
-                          <MatrixAmountInput
-                            amount={cell}
-                            disabled={saveMatrixCell.isPending}
-                            onCommit={(next) => {
-                              setMatrixNote(null);
-                              saveMatrixCell.mutate({
-                                org_id: orgId,
-                                customer_id: line.customer_id!,
-                                revenue_month: matrix.data.month_columns[j].key,
-                                amount: next,
-                                business_unit_id: businessUnitId || null,
-                                division_id: businessUnitId ? divisionId || null : null,
-                              });
-                            }}
-                          />
-                        ) : (
-                          cell
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        Sr.
+                      </th>
+                      <th
+                        className={`${matrixStyle.thPad} ${matrixStyle.rowHe} align-middle overflow-hidden border-b border-border text-left ${matrixStyle.thText} text-ink`}
+                        scope="col"
+                      >
+                        Customer (legal)
+                      </th>
+                      <th
+                        className={`${matrixStyle.thPad} ${matrixStyle.rowHe} align-middle overflow-hidden border-b border-border text-left ${matrixStyle.thText} text-ink`}
+                        scope="col"
+                      >
+                        Common
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrix.data.lines.map((line, idx) => {
+                      const isDelta = line.row_type === "delta";
+                      const rowBg = isDelta
+                        ? "bg-neutral-50"
+                        : matrixHoverRow === idx
+                          ? "bg-teal-50/55"
+                          : "bg-white";
+                      return (
+                        <tr
+                          key={`matrix-left-${line.row_type}-${idx}`}
+                          className={isDelta ? "text-ink-muted" : "text-ink"}
+                          onMouseEnter={() => setMatrixHoverRow(idx)}
+                        >
+                          <td
+                            className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} align-middle overflow-hidden border-b border-border font-mono tabular-nums ${matrixStyle.tdSr} ${rowBg}`}
+                          >
+                            {line.sr_no != null ? line.sr_no : ""}
+                          </td>
+                          <td
+                            className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} max-w-0 truncate align-middle overflow-hidden border-b border-border font-medium text-ink ${matrixStyle.tdBody} ${rowBg}`}
+                            title={line.customer_legal}
+                          >
+                            {line.customer_legal}
+                          </td>
+                          <td
+                            className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} max-w-0 truncate align-middle overflow-hidden border-b border-border ${matrixStyle.tdBody} text-ink-muted ${rowBg}`}
+                            title={line.customer_common ?? ""}
+                          >
+                            {line.customer_common ?? ""}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div
+                className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
+                role="region"
+                aria-label="Revenue amounts by month"
+              >
+                <table className="min-w-max border-collapse text-sm">
+                  <thead className="sticky top-0 z-10 bg-neutral-100">
+                    <tr>
+                      {matrix.data.month_columns.map((c, j) => (
+                        <th
+                          key={c.key}
+                          scope="col"
+                          className={`${matrixStyle.thPad} ${matrixStyle.rowHe} align-middle overflow-hidden whitespace-nowrap border-b border-border text-right font-mono font-semibold text-ink ${matrixStyle.monthTh}`}
+                        >
+                          {phase7 && j > 0 ? (
+                            <div className="flex w-full min-w-0 items-center">
+                              <span className="min-w-0 flex-1 text-right">{c.label}</span>
+                              <span className="w-7 shrink-0" aria-hidden />
+                            </div>
+                          ) : (
+                            c.label
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrix.data.lines.map((line, idx) => {
+                      const isDelta = line.row_type === "delta";
+                      const rowBg = isDelta
+                        ? "bg-neutral-50"
+                        : matrixHoverRow === idx
+                          ? "bg-teal-50/55"
+                          : "bg-white";
+                      return (
+                        <tr
+                          key={`matrix-right-${line.row_type}-${idx}`}
+                          className={isDelta ? "text-ink-muted" : "text-ink"}
+                          onMouseEnter={() => setMatrixHoverRow(idx)}
+                        >
+                          {line.amounts.map((cell, j) => {
+                            const narrativeCell =
+                              isDelta && j > 0 && Boolean(line.customer_id);
+                            const monthGutter = phase7 && j > 0;
+                            const varianceRowBlock =
+                              isDelta &&
+                              cell !== "" &&
+                              j > 0 &&
+                              Boolean(line.customer_id);
+
+                            const cellBody = isDelta ? (
+                              cell === "" ? null : j > 0 && line.customer_id ? (
+                                <VarianceNarrativeBlock
+                                  narrative={line.variance_comments?.[j]}
+                                  editable={line.variance_comments_editable === true}
+                                  focusKey={`${line.customer_id}:${matrix.data!.month_columns[j].key}`}
+                                  isSaving={saveVarianceComment.isPending}
+                                  onSave={async (text) => {
+                                    await saveVarianceComment.mutateAsync({
+                                      org_id: orgId,
+                                      customer_id: line.customer_id!,
+                                      revenue_month: matrix.data!.month_columns[j].key,
+                                      comment_text: text,
+                                      business_unit_id: businessUnitId || null,
+                                      division_id: businessUnitId ? divisionId || null : null,
+                                    });
+                                  }}
+                                >
+                                  <MomDeltaCell value={cell} />
+                                </VarianceNarrativeBlock>
+                              ) : (
+                                <MomDeltaCell value={cell} />
+                              )
+                            ) : line.customer_id && matrix.data!.month_columns[j] ? (
+                              <MatrixAmountInput
+                                amount={cell}
+                                compact={matrixStyle.compact}
+                                disabled={saveMatrixCell.isPending || line.amounts_editable === false}
+                                onCommit={(next) => {
+                                  setMatrixNote(null);
+                                  saveMatrixCell.mutate({
+                                    org_id: orgId,
+                                    customer_id: line.customer_id!,
+                                    revenue_month: matrix.data!.month_columns[j].key,
+                                    amount: next,
+                                    business_unit_id: businessUnitId || null,
+                                    division_id: businessUnitId ? divisionId || null : null,
+                                  });
+                                }}
+                              />
+                            ) : (
+                              cell
+                            );
+
+                            return (
+                              <td
+                                key={j}
+                                className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} align-middle whitespace-nowrap border-b border-border text-right font-mono tabular-nums ${matrixStyle.tdMono} ${rowBg} ${
+                                  isDelta ? "text-ink-muted" : "text-ink"
+                                } ${narrativeCell ? "group/vc overflow-visible" : "overflow-hidden"}`}
+                              >
+                                {monthGutter && !varianceRowBlock ? (
+                                  <div className="flex w-full min-w-0 items-center">
+                                    <div className="min-w-0 flex-1 overflow-hidden">{cellBody}</div>
+                                    <div className="w-7 shrink-0" aria-hidden />
+                                  </div>
+                                ) : (
+                                  cellBody
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </>
       ) : null}
 
-      {orgId && matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts" ? (
+      {phase7 && orgId && matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts" ? (
         <p className="text-sm text-ink-muted">
           No customer-scoped facts for this organization yet — showing raw fact rows only. Import a EUROPE workbook or
           ensure facts include a customer.
@@ -527,7 +961,7 @@ export function RevenuePage() {
         <p className="text-sm font-medium text-ink-muted">Loading detail rows…</p>
       ) : null}
 
-      {orgId && matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts" && revenue.isSuccess ? (
+      {showCustomerFactsDetail ? (
         <>
           {series.length > 0 ? (
             <div className="surface-card p-6">
@@ -617,10 +1051,9 @@ export function RevenuePage() {
       ) : null}
 
       {orgId &&
-      matrix.isSuccess &&
-      matrix.data?.empty_reason === "no_customer_facts" &&
       revenue.isSuccess &&
-      revenue.data.items.length === 0 ? (
+      revenue.data.items.length === 0 &&
+      (!phase7 || (matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts")) ? (
         <div className="surface-card px-6 py-14 text-center text-sm text-ink-muted">
           No revenue rows for this organization yet. Import an Excel file on the Import page.
         </div>

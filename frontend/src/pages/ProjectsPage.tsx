@@ -96,8 +96,8 @@ export function ProjectsPage() {
   }, [customers.data?.items]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-6 py-10">
-      <header className="border-b border-black/[0.06] pb-8">
+    <div className="page-shell page-shell--md">
+      <header className="page-header-block">
         <h1 className="page-headline">Projects</h1>
         <p className="page-lede">
           Create and track delivery or commercial projects under an organization. Optionally link a customer (create
@@ -114,13 +114,13 @@ export function ProjectsPage() {
 
       {orgId ? (
         <div className="surface-card space-y-4 p-6">
-          <h2 className="text-sm font-semibold text-ink">New project</h2>
+          <h2 className="text-heading text-[15px]">New project</h2>
           {banner ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950">{banner}</div>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="small-caps-label mb-1.5 block">Organization</label>
+              <label className="form-field-label">Organization</label>
               <select
                 className="input-modern !h-10 w-full"
                 value={orgId}
@@ -135,7 +135,7 @@ export function ProjectsPage() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="small-caps-label mb-1.5 block">Project name</label>
+              <label className="form-field-label">Project name</label>
               <input
                 className="input-modern !h-10 w-full"
                 value={name}
@@ -144,7 +144,7 @@ export function ProjectsPage() {
               />
             </div>
             <div>
-              <label className="small-caps-label mb-1.5 block">Code (optional)</label>
+              <label className="form-field-label">Code (optional)</label>
               <input
                 className="input-modern !h-10 w-full"
                 value={code}
@@ -153,7 +153,7 @@ export function ProjectsPage() {
               />
             </div>
             <div>
-              <label className="small-caps-label mb-1.5 block">Customer (optional)</label>
+              <label className="form-field-label">Customer (optional)</label>
               <select
                 className="input-modern !h-10 w-full"
                 value={customerId}

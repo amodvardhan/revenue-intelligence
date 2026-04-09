@@ -72,7 +72,7 @@ Stories are numbered **6.1–6.4** for traceability. Format: **Given / When / Th
 
 ### Story 6.4 — Operational visibility for integrations and background work
 
-**Given** Excel ingest, HubSpot sync, Celery jobs, and Phase 5 long-running work exist, **when** IT Admin monitors production health, **then** they have a **consolidated** view of **connection health**, **recent job outcomes**, and **actionable errors** (aligned with existing HubSpot connection status and batch semantics) suitable for **pilot runbooks**.
+**Given** Excel ingest (Phase 1 batch jobs—not the optional Phase 7 matrix/workbook interop, which is gated by **`ENABLE_PHASE7`** per [`phase-7-requirements.md`](phase-7-requirements.md)), HubSpot sync, Celery jobs, and Phase 5 long-running work exist, **when** IT Admin monitors production health, **then** they have a **consolidated** view of **connection health**, **recent job outcomes**, and **actionable errors** (aligned with existing HubSpot connection status and batch semantics) suitable for **pilot runbooks**.
 
 **Acceptance criteria**
 

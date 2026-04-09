@@ -9,7 +9,7 @@ export function CustomerSegmentsPage() {
     queryKey: ["segment-definitions"],
     queryFn: async () => {
       const { data } = await api.get<{ items: Array<{ segment_id: string; name: string; version: number }> }>(
-        "/api/v1/segments/definitions"
+        "/api/v1/segments/definitions",
       );
       return data;
     },
@@ -18,24 +18,26 @@ export function CustomerSegmentsPage() {
 
   if (!phase5) {
     return (
-      <div className="p-8">
-        <h1 className="text-display text-slate-900">Customer segments</h1>
-        <p className="mt-2 text-sm text-slate-600">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API.</p>
+      <div className="page-shell page-shell--md page-shell--tight">
+        <h1 className="page-headline">Customer segments</h1>
+        <p className="mt-2 text-sm text-ink-muted">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API to use this screen.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-display text-slate-900">Customer segments</h1>
-      <p className="mt-1 text-sm text-slate-600">Segment rules are stored and replayable; materialize membership from the API.</p>
-      {defs.isLoading ? <p className="mt-4 text-sm">Loading…</p> : null}
-      {defs.isError ? <p className="mt-4 text-sm text-red-600">Could not load definitions.</p> : null}
-      <ul className="mt-4 space-y-2">
+    <div className="page-shell page-shell--md">
+      <header className="page-header-block">
+        <h1 className="page-headline">Customer segments</h1>
+        <p className="page-lede max-w-2xl">Segment rules are stored and replayable; materialize membership from the API.</p>
+      </header>
+
+      {defs.isLoading ? <p className="text-sm text-ink-muted">Loading…</p> : null}
+      {defs.isError ? <p className="text-sm text-error">Could not load definitions.</p> : null}
+      <ul className="space-y-2">
         {(defs.data?.items ?? []).map((s) => (
-          <li key={s.segment_id} className="rounded border border-border bg-white px-3 py-2 text-sm">
-            {s.name}{" "}
-            <span className="text-xs text-slate-500">v{s.version}</span>
+          <li key={s.segment_id} className="surface-card px-4 py-3 text-sm text-ink">
+            {s.name} <span className="text-xs text-ink-muted">v{s.version}</span>
           </li>
         ))}
       </ul>

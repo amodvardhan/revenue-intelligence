@@ -28,55 +28,61 @@ export function ProfitabilityPage() {
 
   if (!phase5) {
     return (
-      <div className="p-8">
-        <h1 className="text-display text-slate-900">Profitability</h1>
-        <p className="mt-2 text-sm text-slate-600">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API.</p>
+      <div className="page-shell page-shell--md page-shell--tight">
+        <h1 className="page-headline">Profitability</h1>
+        <p className="mt-2 text-sm text-ink-muted">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API to use this screen.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-display text-slate-900">Profitability</h1>
-      <div className="mt-2 rounded-md bg-slate-100 p-3 text-sm text-slate-700">
-        Scope: COGS-only costs are shown when cost_scope=cogs_only; upload costs via POST /ingest/cost-uploads.
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <label className="text-sm">
-          From{" "}
-          <input className="ml-1 rounded border px-2 py-1" value={from} onChange={(e) => setFrom(e.target.value)} />
+    <div className="page-shell page-shell--md">
+      <header className="page-header-block">
+        <h1 className="page-headline">Profitability</h1>
+        <p className="page-lede max-w-2xl">COGS-only scope when cost_scope=cogs_only; upload costs via POST /ingest/cost-uploads.</p>
+      </header>
+
+      <div className="surface-card-quiet flex flex-wrap gap-4 p-4">
+        <label className="flex items-center gap-2 text-sm text-ink">
+          From
+          <input
+            className="input-modern !h-10 w-[11rem] font-mono text-[13px]"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
         </label>
-        <label className="text-sm">
-          To{" "}
-          <input className="ml-1 rounded border px-2 py-1" value={to} onChange={(e) => setTo(e.target.value)} />
+        <label className="flex items-center gap-2 text-sm text-ink">
+          To
+          <input className="input-modern !h-10 w-[11rem] font-mono text-[13px]" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </div>
-      {summary.isLoading ? <p className="mt-4 text-sm">Loading…</p> : null}
-      {summary.isError ? (
-        <p className="mt-4 text-sm text-red-600">Unable to load summary (enable Phase 5 on the API).</p>
-      ) : null}
+
+      {summary.isLoading ? <p className="text-sm text-ink-muted">Loading…</p> : null}
+      {summary.isError ? <p className="text-sm text-error">Unable to load summary (enable Phase 5 on the API).</p> : null}
       {summary.data ? (
-        <dl className="mt-6 grid max-w-md gap-2 text-sm">
-          <div className="flex justify-between">
-            <dt>Revenue</dt>
-            <dd className="font-mono tabular-nums">
-              {summary.data.revenue_total} {summary.data.currency_code}
-            </dd>
-          </div>
-          <div className="flex justify-between">
-            <dt>Cost</dt>
-            <dd className="font-mono tabular-nums">
-              {summary.data.cost_total} {summary.data.currency_code}
-            </dd>
-          </div>
-          <div className="flex justify-between font-semibold">
-            <dt>Margin</dt>
-            <dd className="font-mono tabular-nums">
-              {summary.data.margin} {summary.data.currency_code}
-            </dd>
-          </div>
-          <p className="col-span-2 mt-2 text-xs text-slate-500">{summary.data.methodology_note}</p>
-        </dl>
+        <div className="surface-card max-w-md p-6">
+          <dl className="grid gap-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-muted">Revenue</dt>
+              <dd className="font-mono tabular-nums text-ink">
+                {summary.data.revenue_total} {summary.data.currency_code}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-muted">Cost</dt>
+              <dd className="font-mono tabular-nums text-ink">
+                {summary.data.cost_total} {summary.data.currency_code}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4 font-semibold">
+              <dt className="text-ink">Margin</dt>
+              <dd className="font-mono tabular-nums text-ink">
+                {summary.data.margin} {summary.data.currency_code}
+              </dd>
+            </div>
+            <p className="pt-2 text-xs text-ink-muted">{summary.data.methodology_note}</p>
+          </dl>
+        </div>
       ) : null}
     </div>
   );

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dimensions import DimCustomer
 from app.models.facts import FactRevenue
-from app.models.phase7 import RevenueManualCell
+from app.models.phase7 import RevenueManualCell, RevenueVarianceComment
 from app.models.tenant import User
 from app.schemas.revenue import MatrixLine, MatrixMonthColumn, RevenueMatrixResponse
 
@@ -58,6 +58,31 @@ def _manual_amount(
     return None
 
 
+def _scoped_variance_text(
+    comment_map: dict[tuple[UUID, date, UUID | None, UUID | None], str],
+    customer_id: UUID,
+    month: date,
+    business_unit_id: UUID | None,
+    division_id: UUID | None,
+) -> str | None:
+    """Resolve variance narrative for matrix scope (most specific wins)."""
+    m = _month_start(month)
+    if division_id is not None and business_unit_id is not None:
+        k = (customer_id, m, business_unit_id, division_id)
+        if k in comment_map:
+            return comment_map[k]
+        return None
+    if business_unit_id is not None:
+        k = (customer_id, m, business_unit_id, None)
+        if k in comment_map:
+            return comment_map[k]
+        return None
+    k0 = (customer_id, m, None, None)
+    if k0 in comment_map:
+        return comment_map[k0]
+    return None
+
+
 async def build_revenue_matrix(
     session: AsyncSession,
     *,
@@ -69,8 +94,12 @@ async def build_revenue_matrix(
     division_id: UUID | None,
     restricted: bool,
     restricted_bu_ids: set[UUID],
+    allow_matrix_full_edit: bool = False,
+    dm_editable_customers: set[UUID] | None = None,
 ) -> RevenueMatrixResponse:
     """Build matrix with optional BU/division scope; manual cells override fact sums for the same scope."""
+    dm_set: set[UUID] = dm_editable_customers if dm_editable_customers is not None else set()
+    org_wide_matrix = business_unit_id is None and division_id is None
     month_bucket = cast(func.date_trunc("month", FactRevenue.revenue_date), Date)
 
     stmt = (
@@ -128,6 +157,17 @@ async def build_revenue_matrix(
     for m in manual_rows:
         mk = _month_start(m.revenue_month)
         manual_map[(m.customer_id, mk, m.business_unit_id, m.division_id)] = Decimal(m.amount)
+
+    vc_res = await session.execute(
+        select(RevenueVarianceComment).where(
+            RevenueVarianceComment.tenant_id == user.tenant_id,
+            RevenueVarianceComment.org_id == org_id,
+        )
+    )
+    comment_map: dict[tuple[UUID, date, UUID | None, UUID | None], str] = {}
+    for vc in vc_res.scalars().all():
+        mk = _month_start(vc.revenue_month)
+        comment_map[(vc.customer_id, mk, vc.business_unit_id, vc.division_id)] = vc.comment_text
 
     fact_by_cust_month: dict[UUID, dict[date, Decimal]] = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
     currency = "USD"
@@ -198,6 +238,7 @@ async def build_revenue_matrix(
             else:
                 vals.append(fact_by_cust_month[cid].get(_month_start(m), Decimal("0")))
 
+        row_editable = allow_matrix_full_edit or (org_wide_matrix and cid in dm_set)
         lines.append(
             MatrixLine(
                 row_type="value",
@@ -206,22 +247,33 @@ async def build_revenue_matrix(
                 customer_legal=legal,
                 customer_common=common,
                 amounts=[_amount_str(v) for v in vals],
+                amounts_editable=row_editable,
+                variance_comments=None,
+                variance_comments_editable=False,
             )
         )
         delta_amounts: list[str] = []
+        variance_notes: list[str | None] = []
         for i, v in enumerate(vals):
             if i == 0:
                 delta_amounts.append("")
+                variance_notes.append(None)
             else:
                 delta_amounts.append(_amount_str(v - vals[i - 1]))
+                m_col = months_sorted[i]
+                txt = _scoped_variance_text(comment_map, cid, m_col, business_unit_id, division_id)
+                variance_notes.append(txt)
         lines.append(
             MatrixLine(
                 row_type="delta",
                 sr_no=None,
-                customer_id=None,
+                customer_id=cid,
                 customer_legal="",
                 customer_common=None,
                 amounts=delta_amounts,
+                amounts_editable=False,
+                variance_comments=variance_notes,
+                variance_comments_editable=row_editable,
             )
         )
         sr += 1

@@ -169,8 +169,8 @@ export function AnalyticsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-6 py-10">
-      <header className="border-b border-black/[0.06] pb-8">
+    <div className="page-shell">
+      <header className="page-header-block">
         <h1 className="page-headline">Analytics</h1>
         <p className="page-lede">
           Hierarchical rollups and period-over-period comparisons. Use <strong className="font-medium text-ink">Customer</strong>{" "}
@@ -190,7 +190,7 @@ export function AnalyticsPage() {
 
       <div className="surface-card flex flex-wrap items-end gap-4 p-5">
         <div className="min-w-[220px]">
-          <label htmlFor="analytics-org" className="small-caps-label mb-1.5 block">
+          <label htmlFor="analytics-org" className="form-field-label">
             Organization
           </label>
           <select
@@ -209,7 +209,7 @@ export function AnalyticsPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="analytics-hierarchy" className="small-caps-label mb-1.5 block">
+          <label htmlFor="analytics-hierarchy" className="form-field-label">
             Hierarchy
           </label>
           <select
@@ -225,7 +225,7 @@ export function AnalyticsPage() {
           </select>
         </div>
         <div>
-          <label htmlFor="analytics-from" className="small-caps-label mb-1.5 block">
+          <label htmlFor="analytics-from" className="form-field-label">
             Rollup from
           </label>
           <input
@@ -237,7 +237,7 @@ export function AnalyticsPage() {
           />
         </div>
         <div>
-          <label htmlFor="analytics-to" className="small-caps-label mb-1.5 block">
+          <label htmlFor="analytics-to" className="form-field-label">
             Rollup to
           </label>
           <input
@@ -253,7 +253,7 @@ export function AnalyticsPage() {
       <section className="surface-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-ink">Rollup</h2>
+            <h2 className="text-heading">Rollup</h2>
             <p className="mt-1 max-w-xl text-xs text-ink-muted">
               Drill-down: open{" "}
               <Link to="/revenue" className="font-medium text-primary underline-offset-2 hover:underline">
@@ -315,7 +315,7 @@ export function AnalyticsPage() {
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-surface-subtle/50">
               <table className="w-full border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  <tr className="border-b border-border text-left text-[13px] font-semibold text-ink-muted">
                     <th className="py-3 pl-4 pr-4">Name</th>
                     <th className="py-3 pr-4 text-right">Revenue</th>
                     <th className="py-3 pr-4 text-right">Child count</th>
@@ -324,7 +324,7 @@ export function AnalyticsPage() {
                 <tbody>
                   {rollup.data.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="py-6 text-center text-sm text-slate-600">
+                      <td colSpan={3} className="py-6 text-center text-sm text-ink-muted">
                         {hierarchy === "division"
                           ? "No division-scoped revenue in this range. EUROPE workbook imports typically have no division on facts — switch hierarchy to Customer or Organization."
                           : hierarchy === "bu"
@@ -334,7 +334,7 @@ export function AnalyticsPage() {
                     </tr>
                   ) : (
                     rollup.data.rows.map((row, i) => (
-                      <tr key={i} className="border-b border-slate-100/80 transition-colors hover:bg-white/80">
+                      <tr key={i} className="border-b border-neutral-100 transition-colors hover:bg-white/80">
                         <td className="py-2.5 pl-4 pr-4 text-ink">
                           {(row.display_name as string) ||
                             (row.division_name as string) ||
@@ -358,14 +358,14 @@ export function AnalyticsPage() {
       </section>
 
       <section className="surface-card p-6">
-        <h2 className="text-lg font-semibold text-ink">Compare</h2>
+        <h2 className="text-heading">Compare</h2>
         <p className="mt-1 max-w-2xl text-xs text-ink-muted">
           MoM / QoQ / YoY labels describe the comparison style; the numbers always use the <strong className="text-ink">exact</strong>{" "}
           current and baseline date ranges you set (not ambiguous rolling windows).
         </p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="analytics-compare-kind" className="small-caps-label mb-1.5 block">
+            <label htmlFor="analytics-compare-kind" className="form-field-label">
               Compare style
             </label>
             <select
@@ -380,7 +380,7 @@ export function AnalyticsPage() {
             </select>
           </div>
           <div>
-            <label className="small-caps-label mb-1.5 block">Current from / to</label>
+            <label className="form-field-label">Current from / to</label>
             <div className="flex gap-1">
               <input
                 type="date"
@@ -397,7 +397,7 @@ export function AnalyticsPage() {
             </div>
           </div>
           <div>
-            <label className="small-caps-label mb-1.5 block">Baseline from / to</label>
+            <label className="form-field-label">Baseline from / to</label>
             <div className="flex gap-1">
               <input
                 type="date"
@@ -475,7 +475,7 @@ export function AnalyticsPage() {
             <div className="overflow-x-auto rounded-xl border border-border/60 bg-surface-subtle/50">
               <table className="w-full border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  <tr className="border-b border-border text-left text-[13px] font-semibold text-ink-muted">
                     <th className="py-3 pl-4 pr-4">Name</th>
                     <th className="py-3 pr-4 text-right">Current</th>
                     <th className="py-3 pr-4 text-right">Baseline</th>
@@ -485,7 +485,7 @@ export function AnalyticsPage() {
                 </thead>
                 <tbody>
                   {compare.data.rows.map((row, i) => (
-                    <tr key={i} className="border-b border-slate-100/80 transition-colors hover:bg-white/80">
+                    <tr key={i} className="border-b border-neutral-100 transition-colors hover:bg-white/80">
                       <td className="py-2.5 pl-4 pr-4 text-ink">
                         {(row.display_name as string) ||
                           (row.division_name as string) ||

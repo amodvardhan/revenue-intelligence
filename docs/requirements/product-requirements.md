@@ -242,6 +242,7 @@ Each phase must be complete before the next begins. Phases follow `.cursorrules`
 - **Other CRMs** (Salesforce, Dynamics) unless explicitly added later.
 - **Bidirectional sync** (writing back to HubSpot) unless decided otherwise.
 - **Full CPQ / billing** replacement; integration is revenue intelligence ingestion, not full revenue operations suite.
+- **Phase 7** standardized customer-matrix workbook (`Sheet1` / EUROPE-style layout) as a required ingestion or export path—that capability is **Phase 7** ([`phase-7-requirements.md`](phase-7-requirements.md)) and **`ENABLE_PHASE7`**. Phase 4 reconciliation compares CRM facts to **Phase 1** Excel-ingested actuals.
 
 ---
 

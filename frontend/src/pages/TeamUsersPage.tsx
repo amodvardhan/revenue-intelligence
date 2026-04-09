@@ -17,7 +17,8 @@ interface TenantUser {
   user_id: string;
   email: string;
   is_active: boolean;
-  org_roles: OrgRole[];
+  /** Present on API responses; may be absent on stale cache / partial payloads. */
+  org_roles?: OrgRole[];
 }
 
 const ROLE_OPTIONS = [
@@ -86,8 +87,8 @@ export function TeamUsersPage() {
       : false;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-6 py-10">
-      <header className="border-b border-black/[0.06] pb-8">
+    <div className="page-shell page-shell--md">
+      <header className="page-header-block">
         <h1 className="page-headline">Team users</h1>
         <p className="page-lede">
           Create directory accounts in your tenant so they can sign in and be chosen as delivery managers or assigned
@@ -103,13 +104,13 @@ export function TeamUsersPage() {
 
       {users.isSuccess ? (
         <div className="surface-card space-y-4 p-6">
-          <h2 className="text-sm font-semibold text-ink">Add user</h2>
+          <h2 className="text-heading text-[15px]">Add user</h2>
           {banner ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950">{banner}</div>
           ) : null}
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="min-w-[200px] flex-1">
-              <label className="small-caps-label mb-1.5 block">Organization (first role)</label>
+              <label className="form-field-label">Organization (first role)</label>
               <select
                 className="input-modern !h-10 w-full"
                 value={orgId}
@@ -124,7 +125,7 @@ export function TeamUsersPage() {
               </select>
             </div>
             <div className="min-w-[220px] flex-1">
-              <label className="small-caps-label mb-1.5 block">Email</label>
+              <label className="form-field-label">Email</label>
               <input
                 type="email"
                 autoComplete="off"
@@ -135,7 +136,7 @@ export function TeamUsersPage() {
               />
             </div>
             <div className="min-w-[180px] flex-1">
-              <label className="small-caps-label mb-1.5 block">Temporary password</label>
+              <label className="form-field-label">Temporary password</label>
               <input
                 type="password"
                 autoComplete="new-password"
@@ -146,7 +147,7 @@ export function TeamUsersPage() {
               />
             </div>
             <div className="min-w-[160px]">
-              <label className="small-caps-label mb-1.5 block">Role</label>
+              <label className="form-field-label">Role</label>
               <select className="input-modern !h-10 w-full" value={role} onChange={(e) => setRole(e.target.value)}>
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -170,7 +171,7 @@ export function TeamUsersPage() {
         </div>
       ) : null}
 
-      {users.isSuccess ? (
+      {users.isSuccess && users.data ? (
         <div className="overflow-x-auto rounded-2xl border border-border/60 bg-white shadow-card">
           <table className="min-w-full divide-y divide-border text-sm">
             <thead className="bg-surface-subtle/80 text-left text-xs font-semibold text-ink">
@@ -181,25 +182,28 @@ export function TeamUsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {users.data.items.map((u) => (
-                <tr key={u.user_id} className="hover:bg-neutral-50/80">
-                  <td className="px-4 py-3 font-mono text-xs text-ink">{u.email}</td>
-                  <td className="px-4 py-3 text-ink-muted">{u.is_active ? "Yes" : "No"}</td>
-                  <td className="px-4 py-3 text-xs text-ink">
-                    {u.org_roles.length === 0 ? (
-                      <span className="text-ink-muted">—</span>
-                    ) : (
-                      <ul className="list-inside list-disc space-y-0.5">
-                        {u.org_roles.map((r) => (
-                          <li key={`${r.org_id}-${r.role}`}>
-                            {r.org_name}: {r.role}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {(users.data.items ?? []).map((u) => {
+                const orgRoles = u.org_roles ?? [];
+                return (
+                  <tr key={u.user_id} className="hover:bg-neutral-50/80">
+                    <td className="px-4 py-3 font-mono text-xs text-ink">{u.email}</td>
+                    <td className="px-4 py-3 text-ink-muted">{u.is_active ? "Yes" : "No"}</td>
+                    <td className="px-4 py-3 text-xs text-ink">
+                      {orgRoles.length === 0 ? (
+                        <span className="text-ink-muted">—</span>
+                      ) : (
+                        <ul className="list-inside list-disc space-y-0.5">
+                          {orgRoles.map((r) => (
+                            <li key={`${r.org_id}-${r.role}`}>
+                              {r.org_name}: {r.role}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

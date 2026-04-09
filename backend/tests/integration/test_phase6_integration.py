@@ -10,6 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import config as config_module
 from app.core.config import get_settings
 from app.core.security import create_access_token, hash_password
 from app.models.audit import AuditEvent
@@ -217,12 +218,19 @@ async def test_story_6_1_tenant_sso_admin_endpoints_forbid_viewer(
 
 
 @pytest.mark.asyncio
-async def test_story_6_1_oidc_callback_missing_code_returns_safe_error(async_client: AsyncClient) -> None:
-    res = await async_client.get("/api/v1/auth/sso/oidc/callback", follow_redirects=False)
-    assert res.status_code == 400
-    body = res.json()
-    assert "traceback" not in str(body).lower()
-    assert body["detail"]["error"]["code"] == "VALIDATION_ERROR"
+async def test_story_6_1_oidc_callback_missing_code_returns_safe_error(
+    async_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ENABLE_SSO", "true")
+    config_module.get_settings.cache_clear()
+    try:
+        res = await async_client.get("/api/v1/auth/sso/oidc/callback", follow_redirects=False)
+        assert res.status_code == 400
+        body = res.json()
+        assert "traceback" not in str(body).lower()
+        assert body["detail"]["error"]["code"] == "VALIDATION_ERROR"
+    finally:
+        config_module.get_settings.cache_clear()
 
 
 @pytest.mark.asyncio

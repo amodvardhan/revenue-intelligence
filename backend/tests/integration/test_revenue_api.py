@@ -10,6 +10,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import config as config_module
 from app.core.security import create_access_token, hash_password
 from app.models.dimensions import DimCustomer, DimOrganization, UserOrgRole
 from app.models.facts import FactRevenue
@@ -177,55 +178,67 @@ async def _seed_user_customer_matrix(session: AsyncSession) -> tuple[str, str]:
 
 @pytest.mark.asyncio
 async def test_revenue_matrix_workbook_layout(
-    async_client: AsyncClient, db_session: AsyncSession
+    async_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    token, org_id = await _seed_user_customer_matrix(db_session)
-    r = await async_client.get(
-        "/api/v1/revenue/matrix",
-        params={"org_id": org_id},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert r.status_code == 200
-    data = r.json()
-    assert data["empty_reason"] is None
-    assert len(data["month_columns"]) == 2
-    assert len(data["lines"]) == 2
-    assert data["lines"][0]["row_type"] == "value"
-    assert data["lines"][0]["sr_no"] == 1
-    assert data["lines"][0]["customer_legal"] == "Acme Legal"
-    assert data["matrix_scope"] == "organization"
-    assert data["lines"][0]["customer_id"] is not None
-    assert data["lines"][0]["amounts"] == ["100.0000", "130.0000"]
-    assert data["lines"][1]["row_type"] == "delta"
-    assert data["lines"][1]["amounts"][0] == ""
-    assert data["lines"][1]["amounts"][1] == "30.0000"
+    monkeypatch.setenv("ENABLE_PHASE7", "true")
+    config_module.get_settings.cache_clear()
+    try:
+        token, org_id = await _seed_user_customer_matrix(db_session)
+        r = await async_client.get(
+            "/api/v1/revenue/matrix",
+            params={"org_id": org_id},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["empty_reason"] is None
+        assert len(data["month_columns"]) == 2
+        assert len(data["lines"]) == 2
+        assert data["lines"][0]["row_type"] == "value"
+        assert data["lines"][0]["sr_no"] == 1
+        assert data["lines"][0]["customer_legal"] == "Acme Legal"
+        assert data["matrix_scope"] == "organization"
+        assert data["lines"][0]["customer_id"] is not None
+        assert data["lines"][0]["amounts"] == ["100.0000", "130.0000"]
+        assert data["lines"][0]["amounts_editable"] is True
+        assert data["lines"][1]["row_type"] == "delta"
+        assert data["lines"][1]["amounts_editable"] is False
+        assert data["lines"][1]["amounts"][0] == ""
+        assert data["lines"][1]["amounts"][1] == "30.0000"
+    finally:
+        config_module.get_settings.cache_clear()
 
 
 @pytest.mark.asyncio
 async def test_revenue_matrix_manual_cell_override(
-    async_client: AsyncClient, db_session: AsyncSession
+    async_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    token, org_id = await _seed_user_customer_matrix(db_session)
-    r0 = await async_client.get(
-        "/api/v1/revenue/matrix",
-        params={"org_id": org_id},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    cust_id = r0.json()["lines"][0]["customer_id"]
-    month_key = r0.json()["month_columns"][1]["key"]
-    rev_month = datetime.fromisoformat(month_key).date()
+    monkeypatch.setenv("ENABLE_PHASE7", "true")
+    config_module.get_settings.cache_clear()
+    try:
+        token, org_id = await _seed_user_customer_matrix(db_session)
+        r0 = await async_client.get(
+            "/api/v1/revenue/matrix",
+            params={"org_id": org_id},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        cust_id = r0.json()["lines"][0]["customer_id"]
+        month_key = r0.json()["month_columns"][1]["key"]
+        rev_month = datetime.fromisoformat(month_key).date()
 
-    r = await async_client.put(
-        "/api/v1/revenue/matrix/cell",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "org_id": org_id,
-            "customer_id": cust_id,
-            "revenue_month": rev_month.isoformat(),
-            "amount": "200.0000",
-        },
-    )
-    assert r.status_code == 200
-    data = r.json()
-    assert data["lines"][0]["amounts"] == ["100.0000", "200.0000"]
-    assert data["lines"][1]["amounts"][1] == "100.0000"
+        r = await async_client.put(
+            "/api/v1/revenue/matrix/cell",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "org_id": org_id,
+                "customer_id": cust_id,
+                "revenue_month": rev_month.isoformat(),
+                "amount": "200.0000",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["lines"][0]["amounts"] == ["100.0000", "200.0000"]
+        assert data["lines"][1]["amounts"][1] == "100.0000"
+    finally:
+        config_module.get_settings.cache_clear()

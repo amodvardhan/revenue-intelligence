@@ -24,14 +24,14 @@ export function DisambiguationPanel({
       <div className="mb-3 flex items-start gap-2">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden />
         <div>
-          <h2 className="text-heading text-base font-semibold text-slate-900">Clarify your question</h2>
-          <p className="text-small text-slate-600">Choose an option so we do not guess financially material details.</p>
+          <h2 className="text-heading">Clarify your question</h2>
+          <p className="text-small text-ink-muted">Choose an option so we do not guess financially material details.</p>
         </div>
       </div>
       <div className="space-y-4">
         {questions.map((q) => (
           <fieldset key={q.prompt_id} className="space-y-2">
-            <legend className="text-sm font-medium text-slate-800">{q.text}</legend>
+            <legend className="text-sm font-medium text-ink">{q.text}</legend>
             <div className="flex flex-wrap gap-2">
               {q.choices.map((c) => (
                 <label
@@ -39,7 +39,7 @@ export function DisambiguationPanel({
                   className={`cursor-pointer rounded-md border px-3 py-2 text-sm ${
                     selections[q.prompt_id] === c.id
                       ? "border-primary bg-primary-muted text-primary"
-                      : "border-border bg-white hover:bg-slate-50"
+                      : "border-border bg-white hover:bg-neutral-50"
                   }`}
                 >
                   <input

@@ -42,6 +42,7 @@ from app.models.phase7 import (
     CustomerDeliveryManagerAssignment,
     NotificationOutbox,
     RevenueManualCell,
+    RevenueVarianceComment,
     RevenueVarianceCase,
     RevenueVarianceExplanation,
     VarianceDetectionRule,
@@ -92,5 +93,6 @@ __all__ = [
     "WorkbookTemplateVersion",
     "NotificationOutbox",
     "RevenueManualCell",
+    "RevenueVarianceComment",
     "CustomerDeliveryManagerAssignment",
 ]

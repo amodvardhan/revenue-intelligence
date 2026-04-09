@@ -85,8 +85,8 @@ export function NLQueryPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <header className="border-b border-black/[0.06] pb-8">
+    <div className="page-shell page-shell--sm">
+      <header className="page-header-block">
         <h1 className="page-headline">Ask revenue</h1>
         <p className="page-lede">
           Ask questions in plain language. Answers use the same revenue definitions as Analytics — governed, read-only
@@ -97,7 +97,7 @@ export function NLQueryPage() {
       <div className="mt-8 max-w-3xl space-y-5">
         <div className="surface-card flex flex-wrap items-end gap-3 p-4">
           <label className="block w-full max-w-md">
-            <span className="small-caps-label">Organization (optional)</span>
+            <span className="form-field-label">Organization (optional)</span>
             <input
               type="text"
               className="input-modern mt-2 block w-full font-mono text-[13px]"

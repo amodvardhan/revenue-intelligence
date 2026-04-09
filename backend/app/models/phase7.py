@@ -194,6 +194,43 @@ class WorkbookTemplateVersion(Base):
     )
 
 
+class RevenueVarianceComment(Base):
+    """Short narrative for MoM (and related) variance at matrix grain; same scope keys as manual cells."""
+
+    __tablename__ = "revenue_variance_comment"
+    __table_args__ = (Index("idx_revenue_variance_comment_org_customer", "tenant_id", "org_id", "customer_id"),)
+
+    variance_comment_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_organization.org_id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_customer.customer_id", ondelete="RESTRICT"), nullable=False
+    )
+    revenue_month: Mapped[date] = mapped_column(Date, nullable=False)
+    business_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_business_unit.business_unit_id", ondelete="RESTRICT"), nullable=True
+    )
+    division_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_division.division_id", ondelete="RESTRICT"), nullable=True
+    )
+    comment_text: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
 class RevenueManualCell(Base):
     """User-entered cell total for matrix (overrides summed facts for the same scope)."""
 

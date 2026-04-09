@@ -46,6 +46,9 @@ class MatrixLine(BaseModel):
     customer_legal: str = ""
     customer_common: str | None = None
     amounts: list[str]
+    amounts_editable: bool = False
+    variance_comments: list[str | None] | None = None
+    variance_comments_editable: bool = False
 
 
 class RevenueMatrixResponse(BaseModel):
@@ -67,3 +70,30 @@ class MatrixCellUpsertBody(BaseModel):
     amount: str = Field(description="Decimal string; use to set or replace manual override")
     business_unit_id: UUID | None = None
     division_id: UUID | None = None
+
+
+class VarianceCommentUpsertBody(BaseModel):
+    """Narrative for variance on the delta into revenue_month (MoM vs prior column); optional BU/division scope."""
+
+    org_id: UUID
+    customer_id: UUID
+    revenue_month: date = Field(description="Month being explained (same as matrix column after the delta)")
+    comment_text: str = Field(description="Empty string removes the narrative for this scope")
+    business_unit_id: UUID | None = None
+    division_id: UUID | None = None
+
+
+class VarianceCommentPromptItem(BaseModel):
+    """DM dashboard: assigned customer month needing a variance narrative."""
+
+    customer_id: UUID
+    customer_legal: str
+    revenue_month: date
+    month_label: str
+    mom_delta: str | None = None
+    yoy_delta: str | None = None
+    currency_code: str = "USD"
+
+
+class VarianceCommentPromptListResponse(BaseModel):
+    items: list[VarianceCommentPromptItem]

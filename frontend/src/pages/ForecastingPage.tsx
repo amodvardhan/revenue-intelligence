@@ -12,7 +12,7 @@ export function ForecastingPage() {
     queryKey: ["forecast-series"],
     queryFn: async () => {
       const { data } = await api.get<{ items: Array<{ forecast_series_id: string; label: string; source_mode: string }> }>(
-        "/api/v1/forecast/series"
+        "/api/v1/forecast/series",
       );
       return data;
     },
@@ -21,45 +21,53 @@ export function ForecastingPage() {
 
   if (!phase5) {
     return (
-      <div className="p-8">
-        <h1 className="text-display text-slate-900">Forecasting</h1>
-        <p className="mt-2 text-sm text-slate-600">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API to use this screen.</p>
+      <div className="page-shell page-shell--md page-shell--tight">
+        <h1 className="page-headline">Forecasting</h1>
+        <p className="mt-2 text-sm text-ink-muted">Set VITE_ENABLE_PHASE5=true and ENABLE_PHASE5=true on the API to use this screen.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-display text-slate-900">Forecasting</h1>
-      <p className="mt-1 text-sm text-slate-600">
-        Forecast views are informational and are not audited financial statements unless Finance exports and signs off outside the product.
-      </p>
-      <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        <strong>Disclaimer:</strong> Forward-looking amounts are not audited actuals. Do not treat forecast as booked revenue.
+    <div className="page-shell page-shell--md">
+      <header className="page-header-block">
+        <h1 className="page-headline">Forecasting</h1>
+        <p className="page-lede max-w-2xl">
+          Forecast views are informational and are not audited financial statements unless Finance exports and signs off
+          outside the product.
+        </p>
+      </header>
+
+      <div className="rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-sm text-amber-950">
+        <strong className="font-semibold">Disclaimer:</strong> Forward-looking amounts are not audited actuals. Do not
+        treat forecast as booked revenue.
       </div>
-      <section className="mt-8">
-        <h2 className="text-heading font-semibold text-slate-800">Forecast series</h2>
-        {series.isLoading ? <p className="mt-2 text-sm text-slate-500">Loading…</p> : null}
+
+      <section className="surface-card p-6">
+        <h2 className="text-heading">Forecast series</h2>
+        {series.isLoading ? <p className="mt-2 text-sm text-ink-muted">Loading…</p> : null}
         {series.isError ? (
-          <p className="mt-2 text-sm text-red-600">Could not load series (is ENABLE_PHASE5 enabled on the API?).</p>
+          <p className="mt-2 text-sm text-error">Could not load series (is ENABLE_PHASE5 enabled on the API?).</p>
         ) : null}
-        <ul className="mt-2 space-y-1">
+        <ul className="mt-3 space-y-1">
           {(series.data?.items ?? []).map((s) => (
-            <li key={s.forecast_series_id} className="text-sm text-slate-700">
+            <li key={s.forecast_series_id} className="text-sm text-ink">
               <button
                 type="button"
-                className="text-left text-primary underline"
+                className="text-left font-medium text-primary underline-offset-2 hover:underline"
                 onClick={() => setSeriesId(s.forecast_series_id)}
               >
                 {s.label}
               </button>{" "}
-              <span className="text-xs text-slate-500">({s.source_mode})</span>
+              <span className="text-xs text-ink-muted">({s.source_mode})</span>
             </li>
           ))}
         </ul>
       </section>
       {seriesId ? (
-        <p className="mt-4 text-xs text-slate-500">Selected series: {seriesId} — use GET /forecast/facts for detail.</p>
+        <p className="text-xs text-ink-muted">
+          Selected series: <span className="font-mono">{seriesId}</span> — use GET /forecast/facts for detail.
+        </p>
       ) : null}
     </div>
   );

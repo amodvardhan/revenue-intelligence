@@ -87,7 +87,7 @@ Existing `GET /revenue`, `/analytics/*`, `/ingest/*`, Phase 3 `/query`, Phase 4â
 
 ## Feature flag
 
-Introduce something like `ENABLE_PHASE7` (or sub-flags for matrix vs variance vs template ingest) so pilots can ship incrementally without breaking core flows.
+Use **`ENABLE_PHASE7`** (backend) and **`VITE_ENABLE_PHASE7`** (frontend) to gate matrix endpoints, manual cell overrides, and delivery-manager APIs; when off, Phases 1â€“6 behavior is unchanged.
 
 ---
 
