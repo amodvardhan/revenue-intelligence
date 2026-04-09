@@ -17,6 +17,10 @@ import { HubSpotIntegrationPage } from "./pages/HubSpotIntegrationPage";
 import { ProfitabilityPage } from "./pages/ProfitabilityPage";
 import { NLQueryAuditLogPage } from "./pages/NLQueryAuditLogPage";
 import { NLQueryPage } from "./pages/NLQueryPage";
+import { CustomersPage } from "./pages/CustomersPage";
+import { DeliveryManagersPage } from "./pages/DeliveryManagersPage";
+import { ProjectsPage } from "./pages/ProjectsPage";
+import { TeamUsersPage } from "./pages/TeamUsersPage";
 import { RevenuePage } from "./pages/RevenuePage";
 
 const phase6 = import.meta.env.VITE_ENABLE_PHASE6 === "true";
@@ -60,6 +64,10 @@ export function App() {
         >
           <Route path="/import" element={<ImportPage />} />
           <Route path="/revenue" element={<RevenuePage />} />
+          <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/delivery-managers" element={<DeliveryManagersPage />} />
+          <Route path="/team/users" element={<TeamUsersPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/ask" element={<NLQueryPage />} />
           <Route path="/query-audit" element={<NLQueryAuditLogPage />} />

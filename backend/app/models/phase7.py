@@ -194,6 +194,79 @@ class WorkbookTemplateVersion(Base):
     )
 
 
+class RevenueManualCell(Base):
+    """User-entered cell total for matrix (overrides summed facts for the same scope)."""
+
+    __tablename__ = "revenue_manual_cell"
+    __table_args__ = (
+        Index("idx_revenue_manual_cell_org", "tenant_id", "org_id"),
+    )
+
+    manual_cell_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_organization.org_id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_customer.customer_id", ondelete="RESTRICT"), nullable=False
+    )
+    revenue_month: Mapped[date] = mapped_column(Date, nullable=False)
+    business_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_business_unit.business_unit_id", ondelete="RESTRICT"), nullable=True
+    )
+    division_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_division.division_id", ondelete="RESTRICT"), nullable=True
+    )
+    amount: Mapped[object] = mapped_column(Numeric(18, 4), nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(3), nullable=False, server_default=text("'USD'"))
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class CustomerDeliveryManagerAssignment(Base):
+    """Maps a customer to a directory user (DM); close rows when reassigning."""
+
+    __tablename__ = "customer_delivery_manager_assignment"
+    __table_args__ = (
+        Index("idx_dm_assignment_org_customer", "tenant_id", "org_id", "customer_id"),
+    )
+
+    assignment_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tenants.tenant_id", ondelete="CASCADE"), nullable=False
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_organization.org_id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("dim_customer.customer_id", ondelete="RESTRICT"), nullable=False
+    )
+    delivery_manager_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.user_id", ondelete="RESTRICT"), nullable=False
+    )
+    valid_from: Mapped[date] = mapped_column(Date, nullable=False, server_default=text("CURRENT_DATE"))
+    valid_to: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
 class NotificationOutbox(Base):
     """Queued email / notification jobs with opaque token reference (D6)."""
 

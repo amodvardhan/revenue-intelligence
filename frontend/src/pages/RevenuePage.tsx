@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   Area,
@@ -46,6 +47,7 @@ interface MatrixMonthColumn {
 interface MatrixLine {
   row_type: "value" | "delta";
   sr_no: number | null;
+  customer_id: string | null;
   customer_legal: string;
   customer_common: string | null;
   amounts: string[];
@@ -56,10 +58,78 @@ interface RevenueMatrixResponse {
   month_columns: MatrixMonthColumn[];
   lines: MatrixLine[];
   empty_reason: string | null;
+  matrix_scope?: "organization" | "business_unit" | "division";
+}
+
+interface BusinessUnitItem {
+  business_unit_id: string;
+  business_unit_name: string;
+}
+
+interface DivisionItem {
+  division_id: string;
+  division_name: string;
+}
+
+function MatrixAmountInput({
+  amount,
+  disabled,
+  onCommit,
+}: {
+  amount: string;
+  disabled?: boolean;
+  onCommit: (next: string) => void;
+}) {
+  const [v, setV] = useState(amount);
+  useEffect(() => setV(amount), [amount]);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      className="w-full min-w-[5.5rem] rounded border border-transparent bg-transparent px-1 py-0.5 text-right font-mono text-[13px] tabular-nums text-ink hover:border-black/[0.08] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => {
+        if (v.trim() === amount.trim()) return;
+        onCommit(v.trim());
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      disabled={disabled}
+      aria-label="Revenue amount"
+    />
+  );
+}
+
+function MomDeltaCell({ value }: { value: string }) {
+  if (!value) return null;
+  const n = parseFloat(value.replace(/,/g, ""));
+  if (!Number.isFinite(n)) {
+    return <span className="text-ink-muted">{value}</span>;
+  }
+  if (n === 0) {
+    return <span className="text-neutral-500">{value}</span>;
+  }
+  const pos = n > 0;
+  return (
+    <span
+      className={`inline-flex items-center justify-end gap-1 font-mono tabular-nums ${
+        pos ? "text-emerald-700" : "text-red-700"
+      }`}
+    >
+      {pos ? <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden /> : <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+      {value}
+    </span>
+  );
 }
 
 export function RevenuePage() {
+  const queryClient = useQueryClient();
   const [orgId, setOrgId] = useState<string>("");
+  const [businessUnitId, setBusinessUnitId] = useState<string>("");
+  const [divisionId, setDivisionId] = useState<string>("");
+  const [matrixNote, setMatrixNote] = useState<string | null>(null);
 
   const orgs = useQuery({
     queryKey: ["organizations"],
@@ -76,15 +146,68 @@ export function RevenuePage() {
     }
   }, [firstOrg, orgId]);
 
-  const matrix = useQuery({
-    queryKey: ["revenue-matrix", orgId],
+  useEffect(() => {
+    setBusinessUnitId("");
+    setDivisionId("");
+  }, [orgId]);
+
+  useEffect(() => {
+    setDivisionId("");
+  }, [businessUnitId]);
+
+  const businessUnits = useQuery({
+    queryKey: ["business-units", orgId],
     queryFn: async () => {
-      const { data } = await api.get<RevenueMatrixResponse>("/api/v1/revenue/matrix", {
+      const { data } = await api.get<{ items: BusinessUnitItem[] }>("/api/v1/business-units", {
         params: { org_id: orgId },
       });
       return data;
     },
     enabled: Boolean(orgId),
+  });
+
+  const divisions = useQuery({
+    queryKey: ["divisions", businessUnitId],
+    queryFn: async () => {
+      const { data } = await api.get<{ items: DivisionItem[] }>("/api/v1/divisions", {
+        params: { business_unit_id: businessUnitId },
+      });
+      return data;
+    },
+    enabled: Boolean(businessUnitId),
+  });
+
+  const matrix = useQuery({
+    queryKey: ["revenue-matrix", orgId, businessUnitId, divisionId],
+    queryFn: async () => {
+      const params: Record<string, string> = { org_id: orgId };
+      if (businessUnitId) params.business_unit_id = businessUnitId;
+      if (businessUnitId && divisionId) params.division_id = divisionId;
+      const { data } = await api.get<RevenueMatrixResponse>("/api/v1/revenue/matrix", { params });
+      return data;
+    },
+    enabled: Boolean(orgId),
+  });
+
+  const saveMatrixCell = useMutation({
+    mutationFn: async (payload: {
+      org_id: string;
+      customer_id: string;
+      revenue_month: string;
+      amount: string;
+      business_unit_id: string | null;
+      division_id: string | null;
+    }) => {
+      const { data } = await api.put<RevenueMatrixResponse>("/api/v1/revenue/matrix/cell", payload);
+      return data;
+    },
+    onSuccess: () => {
+      setMatrixNote(null);
+      void queryClient.invalidateQueries({ queryKey: ["revenue-matrix", orgId, businessUnitId, divisionId] });
+    },
+    onError: () => {
+      setMatrixNote("Could not save this cell. Check amount format and that your role may edit matrix values.");
+    },
   });
 
   const revenue = useQuery({
@@ -165,9 +288,9 @@ export function RevenuePage() {
       <header className="border-b border-black/[0.06] pb-8">
         <h1 className="page-headline">Revenue</h1>
         <p className="page-lede">
-          Customer–month matrix matches the EUROPE workbook layout when facts include customers. Rows show imported
-          values; the following row is month-over-month change (computed). Facts without a customer still appear in the
-          detail table below.
+          Customer–month matrix matches the EUROPE workbook when facts include customers. Value rows are editable to fix
+          imports or enter monthly totals (MoM change recalculates below). Optional BU and division narrow the grid. Facts
+          without a customer still appear in the detail table when the matrix is empty.
         </p>
       </header>
 
@@ -188,6 +311,38 @@ export function RevenuePage() {
             ))}
           </select>
         </div>
+        <div className="min-w-[200px]">
+          <label className="small-caps-label mb-1.5 block">Business unit</label>
+          <select
+            className="input-modern !h-10 w-full"
+            value={businessUnitId}
+            onChange={(e) => setBusinessUnitId(e.target.value)}
+            disabled={!orgId || businessUnits.isLoading}
+          >
+            <option value="">All (organization total)</option>
+            {businessUnits.data?.items.map((b) => (
+              <option key={b.business_unit_id} value={b.business_unit_id}>
+                {b.business_unit_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-[200px]">
+          <label className="small-caps-label mb-1.5 block">Division</label>
+          <select
+            className="input-modern !h-10 w-full"
+            value={divisionId}
+            onChange={(e) => setDivisionId(e.target.value)}
+            disabled={!businessUnitId || divisions.isLoading}
+          >
+            <option value="">All in BU</option>
+            {divisions.data?.items.map((d) => (
+              <option key={d.division_id} value={d.division_id}>
+                {d.division_name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {matrix.isError ? (
@@ -197,6 +352,12 @@ export function RevenuePage() {
         >
           Could not load revenue matrix.{" "}
           {matrix.error instanceof Error ? matrix.error.message : "Check the API and your session."}
+        </div>
+      ) : null}
+
+      {matrixNote ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 shadow-sm" role="status">
+          {matrixNote}
         </div>
       ) : null}
 
@@ -210,7 +371,7 @@ export function RevenuePage() {
 
       {orgId && showMatrix && matrix.data ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="surface-card p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Total (matrix)</p>
               <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-ink">
@@ -227,6 +388,16 @@ export function RevenuePage() {
             <div className="surface-card p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Month columns</p>
               <p className="mt-2 text-sm font-medium text-ink">{matrix.data.month_columns.length}</p>
+            </div>
+            <div className="surface-card p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Matrix scope</p>
+              <p className="mt-2 text-sm text-ink">
+                {matrix.data.matrix_scope === "division"
+                  ? "Division"
+                  : matrix.data.matrix_scope === "business_unit"
+                    ? "Business unit"
+                    : "Organization"}
+              </p>
             </div>
           </div>
 
@@ -314,7 +485,27 @@ export function RevenuePage() {
                           line.row_type === "delta" ? "text-ink-muted" : "text-ink"
                         }`}
                       >
-                        {cell === "" ? "" : cell}
+                        {line.row_type === "delta" ? (
+                          cell === "" ? null : <MomDeltaCell value={cell} />
+                        ) : line.customer_id && matrix.data.month_columns[j] ? (
+                          <MatrixAmountInput
+                            amount={cell}
+                            disabled={saveMatrixCell.isPending}
+                            onCommit={(next) => {
+                              setMatrixNote(null);
+                              saveMatrixCell.mutate({
+                                org_id: orgId,
+                                customer_id: line.customer_id!,
+                                revenue_month: matrix.data.month_columns[j].key,
+                                amount: next,
+                                business_unit_id: businessUnitId || null,
+                                division_id: businessUnitId ? divisionId || null : null,
+                              });
+                            }}
+                          />
+                        ) : (
+                          cell
+                        )}
                       </td>
                     ))}
                   </tr>

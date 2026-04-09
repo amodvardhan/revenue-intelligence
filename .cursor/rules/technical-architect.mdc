@@ -272,6 +272,15 @@ Phase 7 is **additive** on Phases 1–6. Before migrations or new tables for **v
 2. Align import behavior with **reference** [`samples/EUROPE_Weekly Commercial Dashboard.xlsx`](../../samples/EUROPE_Weekly%20Commercial%20Dashboard.xlsx) (`Sheet1` primary for v1); **ingest value rows only** for facts — **skip** paired delta rows in v1 (see handoff decision D2).
 3. Preserve **backward compatibility** for existing `dim_customer` / `fact_revenue` rows (prefer **additive** columns and Alembic backfills). Implemented schema uses **`tenant_id`** on dimensions/facts — Phase 7 tables must match.
 
+**Division of responsibilities (matrix + DM, 2026-04):**
+
+| Area | Owner | Notes |
+|------|--------|--------|
+| **Product / acceptance** | Product Owner (`.cursor/rules/product-owner.mdc`) | What “editable matrix”, MoM presentation, and DM reassignment mean for CXO/Delivery ops; when overrides are allowed. |
+| **Schema & APIs** | Technical Architect (this rule) | `revenue_manual_cell` (scoped override totals), `customer_delivery_manager_assignment` (history via `valid_to`), RLS, idempotent contracts. |
+| **UI/UX** | Implement per `ux-ui-designer.mdc` | Restrained green/red + arrows for MoM; no noisy gradients; accessible controls. |
+| **QA / regression** | Test suite + integration tests | Matrix read path unchanged for consumers without overrides; role-gated writes. |
+
 ---
 
 ## Artifact Outputs

@@ -1,7 +1,11 @@
  import {
   BarChart3,
   ClipboardList,
+  Building2,
+  Contact,
   Coins,
+  FolderKanban,
+  UserPlus,
   FileSpreadsheet,
   LayoutGrid,
   Link2,
@@ -58,6 +62,22 @@ export function AppSidebar() {
         <NavLink to="/revenue" className={linkClass}>
           <Table className={iconClass} aria-hidden />
           Revenue
+        </NavLink>
+        <NavLink to="/customers" className={linkClass}>
+          <Building2 className={iconClass} aria-hidden />
+          Customers
+        </NavLink>
+        <NavLink to="/delivery-managers" className={linkClass}>
+          <Contact className={iconClass} aria-hidden />
+          Delivery managers
+        </NavLink>
+        <NavLink to="/team/users" className={linkClass}>
+          <UserPlus className={iconClass} aria-hidden />
+          Team users
+        </NavLink>
+        <NavLink to="/projects" className={linkClass}>
+          <FolderKanban className={iconClass} aria-hidden />
+          Projects
         </NavLink>
         <NavLink to="/analytics" className={linkClass}>
           <BarChart3 className={iconClass} aria-hidden />

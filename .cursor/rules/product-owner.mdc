@@ -94,6 +94,8 @@ Claude Code must NEVER build Phase N+1 while Phase N is incomplete.
 - [ ] Discrepancy rules; email delivery manager; variance explanation page (up/down) with audit trail
 - [ ] Excel-like matrix for delivery directors (green/red + non-color cues per UX rules)
 - [ ] Standardized import/export aligned to canonical workbook (see `docs/requirements/phase-7-requirements.md`, reference `samples/EUROPE_Weekly Commercial Dashboard.xlsx`)
+- [ ] **Recorded (2026-04):** Monthly revenue **editable in the matrix** (per org; optional BU/division scope) with **MoM change** recalculated after edits; **gains vs prior month** shown as green with up arrow, **losses** as red with down arrow; **wrong Excel data** corrected via cell overrides stored as **manual matrix totals** (does not delete underlying fact rows—overrides win in the grid).
+- [ ] **Recorded (2026-04):** **Delivery manager ↔ customer** mapping page: assign directory users to customers; **reassignment** (DM leaves) **closes** the old row and **opens** a new assignment so **operational ownership** follows the current DM while **revenue history** remains on the customer.
 
 ---
 

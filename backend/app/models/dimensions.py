@@ -219,6 +219,47 @@ class DimCustomer(Base):
     )
 
 
+class DimProject(Base):
+    """Delivery / engagement project under an org; optional link to a customer."""
+
+    __tablename__ = "dim_project"
+    __table_args__ = (Index("idx_dim_project_tenant_org", "tenant_id", "org_id"),)
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("dim_organization.org_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("dim_customer.customer_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    project_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    project_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+
+
 class DimRevenueType(Base):
     __tablename__ = "dim_revenue_type"
     __table_args__ = (UniqueConstraint("tenant_id", "revenue_type_name", name="uq_dim_revenue_type_tenant_name"),)

@@ -29,11 +29,15 @@ HUBSPOT_MAPPING_PATCH_ROLES = frozenset({"finance", "it_admin", "admin"})
 HUBSPOT_CONFLICT_PATCH_ROLES = frozenset({"finance", "it_admin", "admin"})
 
 PHASE5_UPLOAD_ROLES = frozenset({"finance", "admin", "it_admin"})
+MATRIX_EDIT_ROLES = frozenset({"finance", "admin", "bu_head", "it_admin"})
+DM_ASSIGNMENT_ROLES = frozenset({"finance", "admin", "bu_head", "it_admin"})
 TENANT_SETTINGS_WRITE_ROLES = frozenset({"admin", "it_admin", "finance"})
 SEGMENT_DEFINITION_ROLES = frozenset({"bu_head", "finance", "admin", "it_admin"})
 COST_RULE_ROLES = frozenset({"finance", "admin"})
 
 TENANT_SSO_ADMIN_ROLES = frozenset({"it_admin", "admin"})
+TENANT_DIRECTORY_ADMIN_ROLES = frozenset({"admin", "it_admin"})
+PROJECT_WRITE_ROLES = frozenset({"admin", "it_admin", "finance", "bu_head"})
 
 
 async def get_current_user(
@@ -163,6 +167,22 @@ async def _any_org_role(session: AsyncSession, user_id: uuid.UUID, allowed: froz
             UserOrgRole.user_id == user_id,
             UserOrgRole.role.in_(allowed),
         )
+    )
+    return res.scalars().first() is not None
+
+
+async def org_role_allowed(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    org_id: uuid.UUID,
+    allowed: frozenset[str],
+) -> bool:
+    res = await session.execute(
+        select(UserOrgRole).where(
+            UserOrgRole.user_id == user_id,
+            UserOrgRole.org_id == org_id,
+            UserOrgRole.role.in_(allowed),
+        ).limit(1)
     )
     return res.scalars().first() is not None
 
@@ -327,6 +347,24 @@ async def require_tenant_sso_admin(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": {"code": "FORBIDDEN", "message": "IT Admin access required", "details": None}},
+        )
+    return user
+
+
+async def require_tenant_directory_admin(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> User:
+    if not await _any_org_role(session, user.user_id, TENANT_DIRECTORY_ADMIN_ROLES):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "FORBIDDEN",
+                    "message": "Admin or IT Admin role required to manage tenant users",
+                    "details": None,
+                }
+            },
         )
     return user
 

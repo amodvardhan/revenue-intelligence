@@ -6,7 +6,7 @@ from datetime import date
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RevenueRow(BaseModel):
@@ -42,6 +42,7 @@ class MatrixLine(BaseModel):
 
     row_type: Literal["value", "delta"]
     sr_no: int | None = None
+    customer_id: UUID | None = None
     customer_legal: str = ""
     customer_common: str | None = None
     amounts: list[str]
@@ -54,3 +55,15 @@ class RevenueMatrixResponse(BaseModel):
     month_columns: list[MatrixMonthColumn]
     lines: list[MatrixLine]
     empty_reason: str | None = None
+    matrix_scope: Literal["organization", "business_unit", "division"] = "organization"
+
+
+class MatrixCellUpsertBody(BaseModel):
+    """Replace the displayed total for one customer-month (optional BU/division scope)."""
+
+    org_id: UUID
+    customer_id: UUID
+    revenue_month: date = Field(description="Any date in the month; normalized to month start")
+    amount: str = Field(description="Decimal string; use to set or replace manual override")
+    business_unit_id: UUID | None = None
+    division_id: UUID | None = None

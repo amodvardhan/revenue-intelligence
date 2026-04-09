@@ -7,6 +7,7 @@ from app.models.dimensions import (
     DimCustomer,
     DimDivision,
     DimOrganization,
+    DimProject,
     DimRevenueType,
     UserBusinessUnitAccess,
     UserOrgRole,
@@ -38,7 +39,9 @@ from app.models.phase6_governance import (
     UserPermission,
 )
 from app.models.phase7 import (
+    CustomerDeliveryManagerAssignment,
     NotificationOutbox,
+    RevenueManualCell,
     RevenueVarianceCase,
     RevenueVarianceExplanation,
     VarianceDetectionRule,
@@ -53,6 +56,7 @@ __all__ = [
     "DimCustomer",
     "DimDivision",
     "DimOrganization",
+    "DimProject",
     "DimRevenueType",
     "FactRevenue",
     "HubspotConnection",
@@ -87,4 +91,6 @@ __all__ = [
     "RevenueVarianceExplanation",
     "WorkbookTemplateVersion",
     "NotificationOutbox",
+    "RevenueManualCell",
+    "CustomerDeliveryManagerAssignment",
 ]

@@ -20,6 +20,10 @@ from app.api.v1.segments_routes import router as segments_router
 from app.api.v1.ingest_phase5 import router as ingest_phase5_router
 from app.api.v1.phase6_governance import router as phase6_governance_router
 from app.api.v1.phase6_sso import router as phase6_sso_router
+from app.api.v1.customers import router as customers_router
+from app.api.v1.delivery_managers import router as delivery_managers_router
+from app.api.v1.projects import router as projects_router
+from app.api.v1.tenant_directory import router as tenant_directory_router
 
 
 def create_app() -> FastAPI:
@@ -51,6 +55,10 @@ def create_app() -> FastAPI:
     app.include_router(ingest_phase5_router, prefix="/api/v1")
     app.include_router(phase6_sso_router, prefix="/api/v1")
     app.include_router(phase6_governance_router, prefix="/api/v1")
+    app.include_router(customers_router, prefix="/api/v1")
+    app.include_router(delivery_managers_router, prefix="/api/v1")
+    app.include_router(tenant_directory_router, prefix="/api/v1")
+    app.include_router(projects_router, prefix="/api/v1")
     return app
 
 

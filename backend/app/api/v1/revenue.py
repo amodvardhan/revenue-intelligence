@@ -1,31 +1,31 @@
-"""Read-only revenue facts (Phase 1 + Phase 2 drill-down filters and BU scope)."""
+"""Revenue facts + customer matrix (facts, manual cell overrides, MoM display)."""
 
 from __future__ import annotations
 
 import base64
 import json
-from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
-from app.models.dimensions import DimCustomer
+from app.core.deps import MATRIX_EDIT_ROLES, get_current_user, org_role_allowed
+from app.models.dimensions import DimBusinessUnit, DimCustomer, DimDivision
 from app.models.facts import FactRevenue
+from app.models.phase7 import RevenueManualCell
 from app.models.tenant import User
 from app.schemas.revenue import (
-    MatrixLine,
-    MatrixMonthColumn,
+    MatrixCellUpsertBody,
     RevenueListResponse,
     RevenueMatrixResponse,
     RevenueRow,
 )
 from app.services.access_scope import accessible_org_ids, business_unit_scope
+from app.services.revenue.matrix_service import build_revenue_matrix
 
 router = APIRouter(prefix="/revenue", tags=["revenue"])
 
@@ -55,9 +55,8 @@ def _encode_cursor(offset: int) -> str | None:
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
-def _month_label(d: date) -> str:
-    """Mon-YY label to match workbook / Import preview."""
-    return d.strftime("%b-%y")
+def _month_start(d: date) -> date:
+    return date(d.year, d.month, 1)
 
 
 @router.get(
@@ -65,12 +64,15 @@ def _month_label(d: date) -> str:
     response_model=RevenueMatrixResponse,
     summary="Customer × month matrix (workbook layout)",
     description="Pivots facts with customers into Sr. No., names, and month columns; "
-    "adds a computed MoM delta row per customer (not stored as facts).",
+    "adds a computed MoM delta row per customer. Optional BU/division filters scope the grid. "
+    "Manual cell overrides replace the fact total for the same scope.",
 )
 async def revenue_customer_matrix(
     org_id: UUID = Query(..., description="Organization scope"),
     revenue_date_from: date | None = Query(None),
     revenue_date_to: date | None = Query(None),
+    business_unit_id: UUID | None = Query(None, description="Optional: filter matrix to this BU"),
+    division_id: UUID | None = Query(None, description="Optional: filter matrix to this division"),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> RevenueMatrixResponse:
@@ -89,111 +91,222 @@ async def revenue_customer_matrix(
 
     mode, bu_ids = await business_unit_scope(session, user.user_id)
     restricted = mode == "restricted"
+    bu_set = set(bu_ids)
 
-    stmt = (
-        select(
-            DimCustomer.customer_id,
-            DimCustomer.customer_name,
-            DimCustomer.customer_name_common,
-            FactRevenue.revenue_date,
-            func.sum(FactRevenue.amount).label("amt"),
-            func.min(FactRevenue.currency_code).label("ccy"),
+    if division_id is not None and business_unit_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "division_id requires business_unit_id",
+                    "details": None,
+                }
+            },
         )
-        .select_from(FactRevenue)
-        .join(DimCustomer, DimCustomer.customer_id == FactRevenue.customer_id)
-        .where(
-            FactRevenue.tenant_id == user.tenant_id,
-            FactRevenue.org_id == org_id,
-            FactRevenue.is_deleted.is_(False),
-            FactRevenue.customer_id.isnot(None),
+
+    return await build_revenue_matrix(
+        session,
+        user=user,
+        org_id=org_id,
+        revenue_date_from=revenue_date_from,
+        revenue_date_to=revenue_date_to,
+        business_unit_id=business_unit_id,
+        division_id=division_id,
+        restricted=restricted,
+        restricted_bu_ids=bu_set,
+    )
+
+
+@router.put(
+    "/matrix/cell",
+    response_model=RevenueMatrixResponse,
+    summary="Upsert manual matrix cell (correct or enter monthly revenue)",
+)
+async def upsert_matrix_cell(
+    body: MatrixCellUpsertBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> RevenueMatrixResponse:
+    accessible = await accessible_org_ids(session, user.user_id)
+    if body.org_id not in accessible:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "FORBIDDEN", "message": "No access to organization", "details": None}},
         )
-        .group_by(
-            DimCustomer.customer_id,
-            DimCustomer.customer_name,
-            DimCustomer.customer_name_common,
-            FactRevenue.revenue_date,
+    if not await org_role_allowed(session, user.user_id, body.org_id, MATRIX_EDIT_ROLES):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "FORBIDDEN", "message": "Insufficient role to edit matrix", "details": None}},
+        )
+
+    if body.division_id is not None and body.business_unit_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": {"code": "VALIDATION_ERROR", "message": "division_id requires business_unit_id", "details": None}},
+        )
+
+    try:
+        amount = Decimal(body.amount.strip().replace(",", ""))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": {"code": "VALIDATION_ERROR", "message": f"Invalid amount: {exc}", "details": None}},
+        ) from exc
+
+    month = _month_start(body.revenue_month)
+
+    cust = await session.scalar(
+        select(DimCustomer).where(
+            DimCustomer.customer_id == body.customer_id,
+            DimCustomer.tenant_id == user.tenant_id,
         )
     )
-    if restricted:
-        stmt = stmt.where(
-            and_(
-                FactRevenue.business_unit_id.isnot(None),
-                FactRevenue.business_unit_id.in_(bu_ids),
+    if cust is None or cust.org_id != body.org_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOT_FOUND", "message": "Customer not found for this organization", "details": None}},
+        )
+
+    if body.business_unit_id is not None:
+        bu = await session.scalar(
+            select(DimBusinessUnit).where(
+                DimBusinessUnit.business_unit_id == body.business_unit_id,
+                DimBusinessUnit.tenant_id == user.tenant_id,
+                DimBusinessUnit.org_id == body.org_id,
             )
         )
-    if revenue_date_from is not None:
-        stmt = stmt.where(FactRevenue.revenue_date >= revenue_date_from)
-    if revenue_date_to is not None:
-        stmt = stmt.where(FactRevenue.revenue_date <= revenue_date_to)
-
-    res = await session.execute(stmt)
-    raw_rows = res.all()
-    if not raw_rows:
-        return RevenueMatrixResponse(
-            currency_code="USD",
-            month_columns=[],
-            lines=[],
-            empty_reason="no_customer_facts",
-        )
-
-    currency = raw_rows[0][5] or "USD"
-    by_customer: dict[UUID, dict] = {}
-    month_keys: set[date] = set()
-
-    for cid, cname, ccommon, rev_d, amt, _ccy in raw_rows:
-        month_keys.add(rev_d)
-        if cid not in by_customer:
-            by_customer[cid] = {
-                "legal": cname,
-                "common": (ccommon or "").strip() or None,
-                "amounts": defaultdict(lambda: Decimal("0")),
-            }
-        by_customer[cid]["amounts"][rev_d] += amt or Decimal("0")
-
-    months_sorted = sorted(month_keys)
-    month_columns = [
-        MatrixMonthColumn(key=m.isoformat(), label=_month_label(m)) for m in months_sorted
-    ]
-
-    lines: list[MatrixLine] = []
-    sr = 1
-    for cid in sorted(
-        by_customer.keys(),
-        key=lambda k: (by_customer[k]["legal"] or "").lower(),
-    ):
-        block = by_customer[cid]
-        vals = [block["amounts"].get(m, Decimal("0")) for m in months_sorted]
-        lines.append(
-            MatrixLine(
-                row_type="value",
-                sr_no=sr,
-                customer_legal=block["legal"],
-                customer_common=block["common"],
-                amounts=[_amount_str(v) for v in vals],
+        if bu is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "Business unit not in organization", "details": None}},
+            )
+    if body.division_id is not None:
+        div = await session.scalar(
+            select(DimDivision).where(
+                DimDivision.division_id == body.division_id,
+                DimDivision.tenant_id == user.tenant_id,
+                DimDivision.business_unit_id == body.business_unit_id,
             )
         )
-        delta_amounts: list[str] = []
-        for i, v in enumerate(vals):
-            if i == 0:
-                delta_amounts.append("")
-            else:
-                delta_amounts.append(_amount_str(v - vals[i - 1]))
-        lines.append(
-            MatrixLine(
-                row_type="delta",
-                sr_no=None,
-                customer_legal="",
-                customer_common=None,
-                amounts=delta_amounts,
+        if div is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "Division not under selected BU", "details": None}},
+            )
+
+    res = await session.execute(
+        select(RevenueManualCell).where(
+            RevenueManualCell.tenant_id == user.tenant_id,
+            RevenueManualCell.org_id == body.org_id,
+            RevenueManualCell.customer_id == body.customer_id,
+            RevenueManualCell.revenue_month == month,
+        )
+    )
+    existing = None
+    for row in res.scalars().all():
+        if row.business_unit_id == body.business_unit_id and row.division_id == body.division_id:
+            existing = row
+            break
+
+    if existing is None:
+        session.add(
+            RevenueManualCell(
+                tenant_id=user.tenant_id,
+                org_id=body.org_id,
+                customer_id=body.customer_id,
+                revenue_month=month,
+                business_unit_id=body.business_unit_id,
+                division_id=body.division_id,
+                amount=amount,
+                currency_code="USD",
+                updated_by_user_id=user.user_id,
             )
         )
-        sr += 1
+    else:
+        existing.amount = amount
+        existing.updated_by_user_id = user.user_id
 
-    return RevenueMatrixResponse(
-        currency_code=currency,
-        month_columns=month_columns,
-        lines=lines,
-        empty_reason=None,
+    await session.commit()
+
+    mode, bu_ids = await business_unit_scope(session, user.user_id)
+    return await build_revenue_matrix(
+        session,
+        user=user,
+        org_id=body.org_id,
+        revenue_date_from=None,
+        revenue_date_to=None,
+        business_unit_id=body.business_unit_id,
+        division_id=body.division_id,
+        restricted=mode == "restricted",
+        restricted_bu_ids=set(bu_ids),
+    )
+
+
+@router.delete(
+    "/matrix/cell",
+    response_model=RevenueMatrixResponse,
+    summary="Remove manual override for a matrix cell (revert to imported fact totals)",
+)
+async def delete_matrix_cell(
+    org_id: UUID = Query(...),
+    customer_id: UUID = Query(...),
+    revenue_month: date = Query(..., description="Any date in the month"),
+    business_unit_id: UUID | None = Query(None),
+    division_id: UUID | None = Query(None),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> RevenueMatrixResponse:
+    accessible = await accessible_org_ids(session, user.user_id)
+    if org_id not in accessible:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "FORBIDDEN", "message": "No access to organization", "details": None}},
+        )
+    if not await org_role_allowed(session, user.user_id, org_id, MATRIX_EDIT_ROLES):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "FORBIDDEN", "message": "Insufficient role to edit matrix", "details": None}},
+        )
+    if division_id is not None and business_unit_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": {"code": "VALIDATION_ERROR", "message": "division_id requires business_unit_id", "details": None}},
+        )
+
+    month = _month_start(revenue_month)
+    res = await session.execute(
+        select(RevenueManualCell).where(
+            RevenueManualCell.tenant_id == user.tenant_id,
+            RevenueManualCell.org_id == org_id,
+            RevenueManualCell.customer_id == customer_id,
+            RevenueManualCell.revenue_month == month,
+        )
+    )
+    target = None
+    for row in res.scalars().all():
+        if row.business_unit_id == business_unit_id and row.division_id == division_id:
+            target = row
+            break
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOT_FOUND", "message": "No manual cell for this scope", "details": None}},
+        )
+    session.delete(target)
+    await session.commit()
+
+    mode, bu_ids = await business_unit_scope(session, user.user_id)
+    return await build_revenue_matrix(
+        session,
+        user=user,
+        org_id=org_id,
+        revenue_date_from=None,
+        revenue_date_to=None,
+        business_unit_id=business_unit_id,
+        division_id=division_id,
+        restricted=mode == "restricted",
+        restricted_bu_ids=set(bu_ids),
     )
 
 
