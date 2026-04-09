@@ -10,12 +10,12 @@ from typing import Literal
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.dimensions import DimBusinessUnit, DimDivision, DimOrganization
+from app.models.dimensions import DimBusinessUnit, DimCustomer, DimDivision, DimOrganization
 from app.models.dimensions import UserOrgRole
 from app.models.facts import FactRevenue
 from app.services.access_scope import business_unit_scope
 
-Hierarchy = Literal["org", "bu", "division"]
+Hierarchy = Literal["org", "bu", "division", "customer"]
 CompareKind = Literal["mom", "qoq", "yoy"]
 
 
@@ -114,8 +114,12 @@ async def revenue_rollup(
         rows = await _rollup_org(session, filters)
     elif hierarchy == "bu":
         rows = await _rollup_bu(session, filters)
-    else:
+    elif hierarchy == "division":
         rows = await _rollup_division(session, filters)
+    elif hierarchy == "customer":
+        rows = await _rollup_customer(session, filters)
+    else:
+        raise ValueError(f"unsupported hierarchy: {hierarchy}")
 
     payload = {
         "hierarchy": hierarchy,
@@ -247,6 +251,50 @@ async def _rollup_division(session: AsyncSession, filters: list) -> list[dict]:
     return rows_out
 
 
+async def _rollup_customer(session: AsyncSession, filters: list) -> list[dict]:
+    """Phase 7 — revenue by customer (EUROPE matrix and any facts with customer_id)."""
+    stmt = (
+        select(
+            DimCustomer.customer_id,
+            DimCustomer.customer_name,
+            DimCustomer.customer_name_common,
+            func.max(DimOrganization.org_name).label("org_name"),
+            func.coalesce(func.sum(FactRevenue.amount), Decimal("0")).label("revenue"),
+        )
+        .select_from(FactRevenue)
+        .join(DimCustomer, DimCustomer.customer_id == FactRevenue.customer_id)
+        .join(DimOrganization, DimOrganization.org_id == FactRevenue.org_id)
+        .where(and_(*filters, FactRevenue.customer_id.isnot(None)))
+        .group_by(
+            DimCustomer.customer_id,
+            DimCustomer.customer_name,
+            DimCustomer.customer_name_common,
+        )
+    )
+    res = await session.execute(stmt)
+    rows_out: list[dict] = []
+    for cid, cname, ccommon, oname, revenue in res.all():
+        label_common = (ccommon or "").strip()
+        display = cname if not label_common else f"{cname} ({label_common})"
+        rows_out.append(
+            {
+                "org_id": None,
+                "org_name": oname,
+                "business_unit_id": None,
+                "business_unit_name": None,
+                "division_id": None,
+                "division_name": None,
+                "customer_id": str(cid),
+                "customer_name": cname,
+                "customer_name_common": ccommon,
+                "display_name": display,
+                "revenue": _amount_str(revenue),
+                "child_count": 0,
+            }
+        )
+    return rows_out
+
+
 async def revenue_compare(
     session: AsyncSession,
     *,
@@ -296,10 +344,7 @@ async def revenue_compare(
     all_keys = set(cur_keyed) | set(cmp_keyed)
     rows_out: list[dict] = []
 
-    def _sort_key(k: tuple[str | None, str | None, str | None]) -> tuple:
-        return (k[0] or "", k[1] or "", k[2] or "")
-
-    for key in sorted(all_keys, key=_sort_key):
+    for key in sorted(all_keys):
         cur_t = cur_keyed.get(key)
         cmp_t = cmp_keyed.get(key)
         cur_amt, cur_miss, cur_meta = cur_t if cur_t else (Decimal("0"), True, {})
@@ -352,8 +397,8 @@ async def _sum_by_hierarchy(
     session: AsyncSession,
     hierarchy: Hierarchy,
     filters: list,
-) -> dict[tuple[str | None, str | None, str | None], tuple[Decimal, bool, dict]]:
-    """Key (org_id, bu_id, div_id) str or None — matches hierarchy grain."""
+) -> dict[str, tuple[Decimal, bool, dict]]:
+    """Stable string keys per grain for period-over-period merge."""
 
     if hierarchy == "org":
         stmt = (
@@ -368,10 +413,9 @@ async def _sum_by_hierarchy(
             .group_by(DimOrganization.org_id, DimOrganization.org_name)
         )
         res = await session.execute(stmt)
-        out: dict[tuple[str | None, str | None, str | None], tuple[Decimal, bool, dict]] = {}
+        out: dict[str, tuple[Decimal, bool, dict]] = {}
         for oid, oname, total in res.all():
-            key = (str(oid), None, None)
-            out[key] = (
+            out[f"org:{oid}"] = (
                 total or Decimal("0"),
                 False,
                 {
@@ -400,8 +444,7 @@ async def _sum_by_hierarchy(
         res = await session.execute(stmt)
         out = {}
         for buid, buname, total in res.all():
-            key = (None, str(buid), None)
-            out[key] = (
+            out[f"bu:{buid}"] = (
                 total or Decimal("0"),
                 False,
                 {
@@ -411,28 +454,67 @@ async def _sum_by_hierarchy(
             )
         return out
 
-    stmt = (
-        select(
-            DimDivision.division_id,
-            DimDivision.division_name,
-            func.coalesce(func.sum(FactRevenue.amount), Decimal("0")),
+    if hierarchy == "division":
+        stmt = (
+            select(
+                DimDivision.division_id,
+                DimDivision.division_name,
+                func.coalesce(func.sum(FactRevenue.amount), Decimal("0")),
+            )
+            .select_from(FactRevenue)
+            .join(DimDivision, DimDivision.division_id == FactRevenue.division_id)
+            .where(and_(*filters, FactRevenue.division_id.isnot(None)))
+            .group_by(DimDivision.division_id, DimDivision.division_name)
         )
-        .select_from(FactRevenue)
-        .join(DimDivision, DimDivision.division_id == FactRevenue.division_id)
-        .where(and_(*filters, FactRevenue.division_id.isnot(None)))
-        .group_by(DimDivision.division_id, DimDivision.division_name)
-    )
-    res = await session.execute(stmt)
-    out = {}
-    for did, dname, total in res.all():
-        key = (None, None, str(did))
-        out[key] = (
-            total or Decimal("0"),
-            False,
-            {
-                "division_id": str(did),
-                "division_name": dname,
-            },
+        res = await session.execute(stmt)
+        out = {}
+        for did, dname, total in res.all():
+            out[f"div:{did}"] = (
+                total or Decimal("0"),
+                False,
+                {
+                    "division_id": str(did),
+                    "division_name": dname,
+                },
+            )
+        return out
+
+    if hierarchy == "customer":
+        stmt = (
+            select(
+                DimCustomer.customer_id,
+                DimCustomer.customer_name,
+                DimCustomer.customer_name_common,
+                func.coalesce(func.sum(FactRevenue.amount), Decimal("0")),
+            )
+            .select_from(FactRevenue)
+            .join(DimCustomer, DimCustomer.customer_id == FactRevenue.customer_id)
+            .where(and_(*filters, FactRevenue.customer_id.isnot(None)))
+            .group_by(
+                DimCustomer.customer_id,
+                DimCustomer.customer_name,
+                DimCustomer.customer_name_common,
+            )
         )
-    return out
+        res = await session.execute(stmt)
+        out = {}
+        for cid, cname, ccommon, total in res.all():
+            label_common = (ccommon or "").strip() if ccommon else ""
+            display = cname if not label_common else f"{cname} ({label_common})"
+            out[f"cust:{cid}"] = (
+                total or Decimal("0"),
+                False,
+                {
+                    "customer_id": str(cid),
+                    "customer_name": cname,
+                    "customer_name_common": ccommon,
+                    "display_name": display,
+                    "org_name": None,
+                    "business_unit_name": None,
+                    "division_name": None,
+                },
+            )
+        return out
+
+    raise ValueError(f"unsupported hierarchy: {hierarchy}")
 

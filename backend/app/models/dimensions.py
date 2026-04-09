@@ -199,6 +199,7 @@ class DimCustomer(Base):
         nullable=False,
     )
     customer_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    customer_name_common: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customer_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     org_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),

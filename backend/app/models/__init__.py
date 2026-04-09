@@ -37,6 +37,13 @@ from app.models.phase6_governance import (
     UserFederatedIdentity,
     UserPermission,
 )
+from app.models.phase7 import (
+    NotificationOutbox,
+    RevenueVarianceCase,
+    RevenueVarianceExplanation,
+    VarianceDetectionRule,
+    WorkbookTemplateVersion,
+)
 from app.models.tenant import Tenant, User
 
 __all__ = [
@@ -75,4 +82,9 @@ __all__ = [
     "IdpGroupRoleMapping",
     "UserPermission",
     "TenantSecuritySettings",
+    "VarianceDetectionRule",
+    "RevenueVarianceCase",
+    "RevenueVarianceExplanation",
+    "WorkbookTemplateVersion",
+    "NotificationOutbox",
 ]

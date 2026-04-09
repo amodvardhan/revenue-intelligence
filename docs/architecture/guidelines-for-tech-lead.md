@@ -1,7 +1,7 @@
 # Guidelines for Tech Lead — Read Before Writing Code
 
 **Status:** APPROVED  
-**Approved:** 2026-04-06 (April 6, 2026) — §11b Phase 3; **§11c Phase 4** HubSpot; **§11d Phase 5** forecast, cost, FX, segments; **§11e Phase 6** SSO, audit export, admin operations  
+**Approved:** 2026-04-06 (April 6, 2026) — §11b Phase 3; **§11c Phase 4** HubSpot; **§11d Phase 5** forecast, cost, FX, segments; **§11e Phase 6** SSO, audit export, admin operations; **§11f Phase 7** customer matrix, variance, workbook template I/O (see **2026-04-08**)  
 **Source of truth:** This document is authoritative for implementation. The Tech Lead must not deviate from it without `@technical-architect` review and explicit approval.
 
 **Audience:** Tech Lead (primary), all implementers  
@@ -283,6 +283,23 @@ Request
 
 ---
 
+## 11f. Phase 7 — customer revenue matrix, variance, standardized workbook I/O
+
+| Topic | Rule |
+|-------|------|
+| **Additive scope** | Phase 7 **extends** Phases 1–6 — no edits to locked phase requirement text; new behavior behind **`ENABLE_PHASE7`** (or sub-flags) until GA. |
+| **Single definition of revenue** | Customer matrix and comparison APIs **must** delegate to **`services/analytics/`** (or shared repositories) using the **same** `fact_revenue` filters and non-deleted semantics as **`GET /analytics/revenue/rollup`** / **`GET /revenue`** — no parallel ad-hoc SQL that drifts from Phase 2. |
+| **`dim_customer`** | Add **`customer_name_common`** only — **do not** rename **`customer_name`**; backfill common = legal where null. |
+| **Template ingest** | **Value rows only** for `fact_revenue` in the **EUROPE Weekly Commercial v1** profile; **skip** paired delta rows; MoM/YoY from **computed** comparisons. |
+| **Fail-whole-file** | Default **unchanged** from Phase 1 for the same upload path — see [`phase-7-implementation-handoff.md`](phase-7-implementation-handoff.md) decision D3. |
+| **Variance** | **`revenue_variance_case`** + **`revenue_variance_explanation`** + **`variance_detection_rule`** per [`database-schema.md`](database-schema.md) §3.37–§3.39; **append-only** explanations preferred; **`audit_event`** for explain/dismiss. |
+| **Notifications** | **`notification_outbox`** → email worker; recipients **`users`** in tenant directory only; deep links **TTL + single-use** — no long-lived secrets in DB columns. |
+| **RLS** | New Phase 7 tables **`tenant_id`-scoped**; case visibility follows **org + BU** rules consistent with Phase 2 (`user_org_role`, `user_business_unit_access`). |
+| **NL / MCP** | Optional semantic terms for customer common name / variance — **whitelist-only**; **never** raw LLM SQL. |
+| **Regression** | Disabling **`ENABLE_PHASE7`** must leave Phase 1–6 APIs and ingestion **unchanged**. |
+
+---
+
 ## 12. Vertical slice order (first implementation)
 
 1. Config + DB session + health check  
@@ -296,6 +313,7 @@ Request
 9. Phase 4: HubSpot OAuth + sync tasks + mapping + reconciliation APIs  
 10. Phase 5: FX rates + `tenant` reporting currency · forecast ingest + `fact_forecast` · cost ingest + allocation rules · segment definitions + materialization · consolidated analytics + semantic/NL extensions  
 11. Phase 6: OIDC/SAML routes + `services/identity/` · tenant SSO admin APIs · **`audit_export`** · **`/admin/operations/summary`** · permissions + security settings  
+12. Phase 7: `dim_customer.customer_name_common` + variance + template registry migrations · `services/variance/`, `services/notifications/` · matrix/comparison APIs · template profile in `services/ingestion/`  
 
 ---
 
@@ -309,6 +327,8 @@ Request
 - `docs/architecture/phase-4-changes.md`
 - `docs/architecture/phase-5-changes.md`
 - `docs/architecture/phase-6-changes.md`
+- `docs/architecture/phase-7-changes.md`
+- `docs/architecture/phase-7-implementation-handoff.md`
 - `docs/requirements/product-requirements.md`
 
 ---

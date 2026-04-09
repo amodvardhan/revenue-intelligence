@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ImportOverlapError
 from app.models.facts import IngestionBatch
 from app.models.tenant import Tenant
+from app.services.ingestion.europe_weekly_commercial import try_parse_europe_weekly_commercial
 from app.services.ingestion.excel_parser import parse_excel
 from app.services.ingestion.loader import DimensionResolveError, insert_revenue_facts
 from app.services.ingestion.overlap import scope_has_overlap, soft_delete_facts_in_scope
@@ -42,23 +43,27 @@ async def run_ingestion(
     batch.status = "validating"
     await session.flush()
 
-    try:
-        parsed = parse_excel(file_content)
-    except Exception as e:
-        batch.status = "failed"
-        batch.error_log = {
-            "errors": [{"row": None, "column": None, "message": f"Could not read Excel file: {e}"}]
-        }
-        batch.completed_at = datetime.now(timezone.utc)
-        await session.commit()
-        return batch
+    v = try_parse_europe_weekly_commercial(file_content)
+    parsed = None
+    if v is None:
+        try:
+            parsed = parse_excel(file_content)
+        except Exception as e:
+            batch.status = "failed"
+            batch.error_log = {
+                "errors": [{"row": None, "column": None, "message": f"Could not read Excel file: {e}"}]
+            }
+            batch.completed_at = datetime.now(timezone.utc)
+            await session.commit()
+            return batch
 
-    v = validate_parsed_excel(parsed)
+        v = validate_parsed_excel(parsed)
     if v.errors:
         batch.status = "failed"
-        batch.total_rows = len(parsed.rows)
+        if parsed is not None:
+            batch.total_rows = len(parsed.rows)
+            batch.error_rows = len(parsed.rows)
         batch.loaded_rows = 0
-        batch.error_rows = len(parsed.rows)
         batch.error_log = {"errors": v.errors}
         batch.completed_at = datetime.now(timezone.utc)
         await session.commit()

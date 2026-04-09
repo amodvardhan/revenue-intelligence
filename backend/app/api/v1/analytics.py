@@ -28,7 +28,9 @@ from app.services.integrations.hubspot.reconciliation import source_reconciliati
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-HIERARCHY_VALUES = ("org", "bu", "division")
+HIERARCHY_VALUES = ("org", "bu", "division", "customer")
+# Phase 5 consolidated / forecast paths remain org | bu | division only.
+PHASE5_HIERARCHY_VALUES = ("org", "bu", "division")
 COMPARE_VALUES = ("mom", "qoq", "yoy")
 GRAIN_VALUES = ("month", "customer", "org")
 
@@ -39,7 +41,7 @@ GRAIN_VALUES = ("month", "customer", "org")
     description="Story 2.1 / 2.3 — totals by org, BU, or division for an explicit date range.",
 )
 async def get_revenue_rollup(
-    hierarchy: str = Query(..., description="org | bu | division"),
+    hierarchy: str = Query(..., description="org | bu | division | customer"),
     revenue_date_from: date = Query(...),
     revenue_date_to: date = Query(...),
     org_id: UUID | None = None,
@@ -270,7 +272,7 @@ async def get_freshness(
     dependencies=[Depends(require_phase5_enabled)],
 )
 async def get_revenue_consolidated(
-    hierarchy: str = Query(..., description="org | bu | division"),
+    hierarchy: str = Query(..., description="org | bu | division | customer"),
     revenue_date_from: date = Query(...),
     revenue_date_to: date = Query(...),
     org_id: UUID | None = None,
@@ -283,10 +285,16 @@ async def get_revenue_consolidated(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
-    if hierarchy not in HIERARCHY_VALUES:
+    if hierarchy not in PHASE5_HIERARCHY_VALUES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"error": {"code": "VALIDATION_ERROR", "message": "Invalid hierarchy", "details": None}},
+            detail={
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "consolidated rollup supports org | bu | division only",
+                    "details": None,
+                }
+            },
         )
     if revenue_date_to < revenue_date_from:
         raise HTTPException(
@@ -385,10 +393,16 @@ async def get_forecast_vs_actual(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
-    if hierarchy not in HIERARCHY_VALUES:
+    if hierarchy not in PHASE5_HIERARCHY_VALUES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"error": {"code": "VALIDATION_ERROR", "message": "Invalid hierarchy", "details": None}},
+            detail={
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "forecast vs actual supports org | bu | division only",
+                    "details": None,
+                }
+            },
         )
     accessible = await accessible_org_ids(session, user.user_id)
     if org_id is not None and org_id not in accessible:

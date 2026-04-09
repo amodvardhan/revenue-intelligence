@@ -264,6 +264,14 @@ REVOKE INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM app_readonly;
 - Partition fact_revenue by year: `PARTITION BY RANGE (revenue_date)`
 - Redis query result cache (TTL: 5 min for live, 1 hr for historical)
 
+### Phase 7 — Customer revenue operations & workbook I/O
+
+Phase 7 is **additive** on Phases 1–6. Before migrations or new tables for **variance cases**, **customer common name**, **notification/deep links**, or **template-versioned** Excel profiles:
+
+1. Read [`docs/architecture/phase-7-changes.md`](../../docs/architecture/phase-7-changes.md), [`docs/architecture/phase-7-implementation-handoff.md`](../../docs/architecture/phase-7-implementation-handoff.md), and [`docs/requirements/phase-7-requirements.md`](../../docs/requirements/phase-7-requirements.md).
+2. Align import behavior with **reference** [`samples/EUROPE_Weekly Commercial Dashboard.xlsx`](../../samples/EUROPE_Weekly%20Commercial%20Dashboard.xlsx) (`Sheet1` primary for v1); **ingest value rows only** for facts — **skip** paired delta rows in v1 (see handoff decision D2).
+3. Preserve **backward compatibility** for existing `dim_customer` / `fact_revenue` rows (prefer **additive** columns and Alembic backfills). Implemented schema uses **`tenant_id`** on dimensions/facts — Phase 7 tables must match.
+
 ---
 
 ## Artifact Outputs
@@ -272,4 +280,6 @@ REVOKE INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM app_readonly;
 - `docs/architecture/schema.md` — Living schema documentation
 - `docs/architecture/adr/` — Architecture Decision Records (ADR-001.md, ADR-002.md...)
 - `docs/architecture/data-flow.md` — Ingestion and query flow diagrams
+- `docs/architecture/phase-7-changes.md` — Phase 7 schema/API delta (customer matrix, variance, notifications, workbook templates)
+- `docs/architecture/phase-7-implementation-handoff.md` — Tech Lead / UX / QA handoff and locked decisions D1–D7
 - `app/core/semantic_layer.yaml` — Semantic term mappings

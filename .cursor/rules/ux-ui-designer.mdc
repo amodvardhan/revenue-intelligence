@@ -1,3 +1,29 @@
 ---
 alwaysApply: true
+description: UX/UI direction — calm, precise, product-grade (Apple-inspired discipline).
 ---
+
+# UX / UI — Revenue Intelligence Platform
+
+Design for **clarity and trust**, not decoration. Follow patterns common to premium system UIs (Apple HIG–adjacent): hierarchy through typography and spacing, not through color noise.
+
+## Principles
+
+1. **Restraint** — One accent (brand teal) for links and primary actions. No competing gradient heroes per page. Surfaces are mostly white and light gray (`#F5F5F7`).
+2. **Typography** — Prefer the **system UI font stack** for interface text; use monospace only for IDs, dates, and numbers in tables. Large titles: semibold, slight negative tracking (`-0.02em`), size ~28–34px.
+3. **Depth** — Hairline borders (`black/6%`) and a single soft shadow tier on elevated cards. Avoid glows, mesh backgrounds, and multiple shadow layers.
+4. **Touch targets** — Minimum ~44px height on primary controls; comfortable padding in forms and navigation.
+5. **Motion** — Subtle, fast transitions (color/opacity). No gratuitous animation.
+6. **Accessibility** — Visible focus rings (`ring-2` + offset), semantic headings, sufficient contrast on secondary text (`neutral-500` / `#6e6e73` range on light gray).
+
+## Anti-patterns
+
+- Gradient buttons and gradient page heroes for every route
+- Uppercase micro-labels everywhere (use sentence case except true abbreviations)
+- Dark “dashboard” chrome unless there is a strong reason (prefer light sidebar + light content)
+- Sparkles / novelty icons for core navigation — prefer simple geometric marks
+
+## Implementation
+
+- Shared utilities live in `frontend/src/index.css` (e.g. `surface-card`, `page-headline`, `input-modern`).
+- Prefer Tailwind `neutral-*` for chrome; custom `ink` tokens for body copy where needed.

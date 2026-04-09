@@ -86,6 +86,15 @@ Claude Code must NEVER build Phase N+1 while Phase N is incomplete.
 - [ ] Customer segmentation
 - [ ] Multi-currency support
 
+### Phase 6 — Enterprise Identity & Pilot Governance
+- [ ] Enterprise SSO (SAML/OIDC), audit export, admin security posture, operational visibility (see `docs/requirements/phase-6-requirements.md`)
+
+### Phase 7 — Customer Revenue Operations & Standardized Workbook I/O (additive; Phases 1–6 unchanged)
+- [ ] Customer-wise revenue views; hierarchical compare (org → BU → division → customer)
+- [ ] Discrepancy rules; email delivery manager; variance explanation page (up/down) with audit trail
+- [ ] Excel-like matrix for delivery directors (green/red + non-color cues per UX rules)
+- [ ] Standardized import/export aligned to canonical workbook (see `docs/requirements/phase-7-requirements.md`, reference `samples/EUROPE_Weekly Commercial Dashboard.xlsx`)
+
 ---
 
 ## Writing User Stories

@@ -10,7 +10,7 @@
     @apply bg-surface-page text-ink antialiased;
   }
   ::selection {
-    @apply bg-primary/20 text-ink;
+    @apply bg-neutral-300/40 text-ink;
   }
 }
 
@@ -18,13 +18,25 @@
   .text-display {
     @apply font-sans font-semibold tracking-tight text-ink;
   }
+  .small-caps-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.06em] text-ink-muted;
+  }
+  .page-headline {
+    @apply font-sans text-[28px] font-semibold leading-tight tracking-[-0.022em] text-ink sm:text-[32px];
+  }
+  .page-lede {
+    @apply mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted;
+  }
   .text-small {
     @apply text-sm leading-relaxed text-ink-muted;
   }
   .surface-card {
-    @apply rounded-2xl border border-border/80 bg-white/90 shadow-card backdrop-blur-sm;
+    @apply rounded-2xl border border-black/[0.06] bg-surface-elevated shadow-card;
   }
   .input-modern {
-    @apply h-10 rounded-xl border border-border bg-white px-3 text-sm text-ink shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20;
+    @apply h-11 rounded-[10px] border border-black/[0.1] bg-white px-3 text-[15px] text-ink shadow-sm transition-shadow placeholder:text-neutral-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20;
+  }
+  .btn-primary-solid {
+    @apply inline-flex h-11 items-center justify-center rounded-[10px] bg-primary px-5 text-[15px] font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:opacity-50;
   }
 }

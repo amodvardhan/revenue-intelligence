@@ -1,7 +1,7 @@
 # Database Schema — Enterprise Revenue Intelligence Platform
 
 **Status:** APPROVED  
-**Approved:** 2026-04-06 (April 6, 2026) — Phase 3 semantic layer + NL audit; **Phase 4** HubSpot tables + `fact_revenue.source_metadata`; **Phase 5** forecast, cost, FX, segments; **Phase 6** SSO governance, federated identity, security/audit export (architecture baseline — implement via Alembic)  
+**Approved:** 2026-04-06 (April 6, 2026) — Phase 3 semantic layer + NL audit; **Phase 4** HubSpot tables + `fact_revenue.source_metadata`; **Phase 5** forecast, cost, FX, segments; **Phase 6** SSO governance, federated identity, security/audit export (architecture baseline — implement via Alembic). **Phase 7** (customer matrix, variance, template I/O) — see **§3.7** (extension), **§3.36–§3.40**, and [`phase-7-implementation-handoff.md`](phase-7-implementation-handoff.md) (additive; migrations pending).  
 **Source of truth:** This document is authoritative for implementation. The Tech Lead must not deviate from it without `@technical-architect` review and explicit approval.
 
 **Audience:** Technical Architect, Tech Lead, DBA, Quality  
@@ -61,6 +61,11 @@ tenants
   └── idp_group_role_mapping (Phase 6 — optional explicit IdP group → app role)
   └── user_permission (Phase 6 — fine-grained grants e.g. audit_export)
   └── tenant_security_settings (Phase 6 — invite-only, SSO expectations, session policy fields where stored in DB)
+  └── workbook_template_version (Phase 7 — versioned Excel column map + hash for canonical template)
+  └── variance_detection_rule (Phase 7 — per-tenant thresholds / comparison types)
+  └── revenue_variance_case (Phase 7 — detected discrepancy grain)
+  └── revenue_variance_explanation (Phase 7 — audited explanations; append-only rows)
+  └── notification_outbox (Phase 7 — email + deep-link queue)
 ```
 
 ---
@@ -199,7 +204,8 @@ Optional **fine-grained** BU restriction for hierarchy analytics and `fact_reven
 |--------|------|-------------|----------|-------|
 | customer_id | UUID | PK, `DEFAULT gen_random_uuid()` | NO | |
 | tenant_id | UUID | FK → `tenants(tenant_id)` ON DELETE RESTRICT | NO | |
-| customer_name | VARCHAR(255) | NOT NULL | NO | |
+| customer_name | VARCHAR(255) | NOT NULL | NO | **Phase 7:** Treat as **legal / canonical** name for display and matching; see **`customer_name_common`**. |
+| customer_name_common | VARCHAR(255) | | YES | **Phase 7:** Short / “common” name from dual-column workbook layout; **backfill** `= customer_name` when NULL. |
 | customer_code | VARCHAR(100) | | YES | |
 | org_id | UUID | FK → `dim_organization(org_id)` ON DELETE SET NULL | YES | |
 | is_active | BOOLEAN | NOT NULL, `DEFAULT TRUE` | NO | |
@@ -835,6 +841,116 @@ Optional **1:1** extension for **session** and **SSO expectation** fields when n
 
 ---
 
+### 3.36 `workbook_template_version` (Phase 7 — Story 7.5)
+
+Published **template contract** for standardized Excel interop (e.g. EUROPE Weekly Commercial). **Does not** replace `ingestion_batch`; it **references** which column map and version apply.
+
+| Column | Type | Constraints | Nullable | Notes |
+|--------|------|-------------|----------|-------|
+| template_version_id | UUID | PK, `DEFAULT gen_random_uuid()` | NO | |
+| tenant_id | UUID | FK → `tenants(tenant_id)` ON DELETE RESTRICT | YES | **NULL** = platform-published template for all tenants in the deploy; non-null = tenant-specific override. |
+| template_key | VARCHAR(100) | NOT NULL | NO | e.g. `europe_weekly_commercial`. |
+| version_label | VARCHAR(50) | NOT NULL | NO | e.g. `v1`. |
+| content_hash | CHAR(64) | | YES | SHA-256 of normalized column spec for drift detection. |
+| primary_sheet_name | VARCHAR(100) | NOT NULL | NO | e.g. `Sheet1`. |
+| column_map | JSONB | NOT NULL | NO | Header → field mapping for parser (auditable). |
+| is_active | BOOLEAN | NOT NULL, `DEFAULT TRUE` | NO | |
+| created_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+| updated_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+
+**Indexes:** `INDEX (template_key, version_label)` unique per product convention; optional `INDEX (is_active)`.
+
+---
+
+### 3.37 `variance_detection_rule` (Phase 7 — Story 7.3)
+
+Per-tenant rules driving **case** creation (thresholds, comparison type, scope).
+
+| Column | Type | Constraints | Nullable | Notes |
+|--------|------|-------------|----------|-------|
+| rule_id | UUID | PK, `DEFAULT gen_random_uuid()` | NO | |
+| tenant_id | UUID | FK → `tenants(tenant_id)` ON DELETE RESTRICT | NO | |
+| rule_name | VARCHAR(255) | NOT NULL | NO | |
+| comparison_type | VARCHAR(50) | NOT NULL | NO | e.g. `mom`, `yoy`, `vs_goal` — enforce via CHECK or app enum. |
+| min_abs_delta | NUMERIC(18,4) | | YES | Materiality floor. |
+| min_pct | NUMERIC(9,6) | | YES | Optional percent threshold. |
+| org_id | UUID | FK → `dim_organization(org_id)` | YES | Optional scope. |
+| business_unit_id | UUID | FK → `dim_business_unit(business_unit_id)` | YES | Optional scope. |
+| is_active | BOOLEAN | NOT NULL, `DEFAULT TRUE` | NO | |
+| created_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+| updated_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+
+**Indexes:** `INDEX (tenant_id, is_active)`.
+
+---
+
+### 3.38 `revenue_variance_case` (Phase 7 — Stories 7.2–7.3)
+
+One row per **detected** variance at the agreed grain.
+
+| Column | Type | Constraints | Nullable | Notes |
+|--------|------|-------------|----------|-------|
+| case_id | UUID | PK, `DEFAULT gen_random_uuid()` | NO | |
+| tenant_id | UUID | FK → `tenants(tenant_id)` ON DELETE RESTRICT | NO | |
+| org_id | UUID | FK → `dim_organization(org_id)` | NO | |
+| business_unit_id | UUID | FK → `dim_business_unit(business_unit_id)` | YES | |
+| division_id | UUID | FK → `dim_division(division_id)` | YES | |
+| customer_id | UUID | FK → `dim_customer(customer_id)` | NO | |
+| period_month | DATE | NOT NULL | NO | **First day of calendar month** bucket. |
+| rule_id | UUID | FK → `variance_detection_rule(rule_id)` ON DELETE RESTRICT | NO | |
+| severity | VARCHAR(50) | NOT NULL | NO | Product-defined. |
+| status | VARCHAR(50) | NOT NULL | NO | e.g. `open`, `explained`, `dismissed`. |
+| baseline_amount | NUMERIC(18,4) | NOT NULL | NO | |
+| actual_amount | NUMERIC(18,4) | NOT NULL | NO | |
+| delta | NUMERIC(18,4) | NOT NULL | NO | |
+| currency_code | CHAR(3) | NOT NULL, `DEFAULT 'USD'` | NO | |
+| created_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+| updated_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+
+**Constraints:** `UNIQUE (tenant_id, rule_id, customer_id, period_month, division_id)` — **Tech Lead:** adjust if `division_id` NULL is allowed for a given tenant rule (partial unique index).
+
+**Indexes:** `INDEX (tenant_id, status, created_at)`, `INDEX (tenant_id, customer_id, period_month)`.
+
+---
+
+### 3.39 `revenue_variance_explanation` (Phase 7 — Story 7.3)
+
+**Append-only** explanation lines (prefer new row per edit if revisions required).
+
+| Column | Type | Constraints | Nullable | Notes |
+|--------|------|-------------|----------|-------|
+| explanation_id | UUID | PK, `DEFAULT gen_random_uuid()` | NO | |
+| case_id | UUID | FK → `revenue_variance_case(case_id)` ON DELETE CASCADE | NO | |
+| explained_by_user_id | UUID | FK → `users(user_id)` | NO | |
+| explanation_text | TEXT | NOT NULL | NO | |
+| movement_direction | VARCHAR(20) | | YES | `up` · `down` · `flat` — CHECK or app enum. |
+| created_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+
+**Indexes:** `INDEX (case_id, created_at)`.
+
+---
+
+### 3.40 `notification_outbox` (Phase 7 — Story 7.3)
+
+Reliable **email** (and future channels) queue; **no** cleartext long-lived secrets in `payload`.
+
+| Column | Type | Constraints | Nullable | Notes |
+|--------|------|-------------|----------|-------|
+| outbox_id | UUID | PK, `DEFAULT gen_random_uuid()` | NO | |
+| tenant_id | UUID | FK → `tenants(tenant_id)` ON DELETE RESTRICT | NO | |
+| recipient_user_id | UUID | FK → `users(user_id)` | NO | Resolve **delivery manager** to directory user. |
+| channel | VARCHAR(50) | NOT NULL | NO | e.g. `email`. |
+| payload | JSONB | NOT NULL | NO | Template refs + metadata; **no** raw JWT. |
+| link_token_id | VARCHAR(100) | | YES | Opaque id or hash for deep-link redemption — not the secret itself. |
+| status | VARCHAR(50) | NOT NULL | NO | `pending` · `sent` · `failed`. |
+| created_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+| updated_at | TIMESTAMPTZ | NOT NULL, `DEFAULT now()` | NO | |
+| sent_at | TIMESTAMPTZ | | YES | |
+
+**Indexes:** `INDEX (tenant_id, status, created_at)`.
+
+---
+
 ## 4. Foreign key reference summary
 
 | Child | Parent |
@@ -873,6 +989,11 @@ Optional **1:1** extension for **session** and **SSO expectation** fields when n
 | idp_group_role_mapping | tenants, dim_organization |
 | user_permission | tenants, users |
 | tenant_security_settings | tenants |
+| workbook_template_version | tenants (optional — `tenant_id` nullable for global templates) |
+| variance_detection_rule | tenants, dim_organization (optional), dim_business_unit (optional) |
+| revenue_variance_case | tenants, dimensions, dim_customer, variance_detection_rule |
+| revenue_variance_explanation | revenue_variance_case, users |
+| notification_outbox | tenants, users |
 
 ---
 
@@ -898,7 +1019,7 @@ Optional **1:1** extension for **session** and **SSO expectation** fields when n
 
 ## 6. RLS policy design
 
-**Enable RLS** on at least: `fact_revenue`, `ingestion_batch`, `semantic_layer_version`, `semantic_term_mapping`, `nl_query_session`, `query_audit_log`, `audit_event`, **`hubspot_connection`**, **`hubspot_sync_cursor`**, **`hubspot_id_mapping`**, **`integration_sync_run`**, **`revenue_source_conflict`**, **`hubspot_deal_staging`** (Phase 4), **`fx_rate`**, **`forecast_series`**, **`fact_forecast`**, **`fact_cost`**, **`cost_allocation_rule`**, **`segment_definition`**, **`segment_membership`** (Phase 5), **`sso_provider_config`**, **`tenant_email_domain_allowlist`**, **`user_federated_identity`**, **`idp_group_role_mapping`**, **`user_permission`**, **`tenant_security_settings`** (Phase 6).
+**Enable RLS** on at least: `fact_revenue`, `ingestion_batch`, `semantic_layer_version`, `semantic_term_mapping`, `nl_query_session`, `query_audit_log`, `audit_event`, **`hubspot_connection`**, **`hubspot_sync_cursor`**, **`hubspot_id_mapping`**, **`integration_sync_run`**, **`revenue_source_conflict`**, **`hubspot_deal_staging`** (Phase 4), **`fx_rate`**, **`forecast_series`**, **`fact_forecast`**, **`fact_cost`**, **`cost_allocation_rule`**, **`segment_definition`**, **`segment_membership`** (Phase 5), **`sso_provider_config`**, **`tenant_email_domain_allowlist`**, **`user_federated_identity`**, **`idp_group_role_mapping`**, **`user_permission`**, **`tenant_security_settings`** (Phase 6), **`workbook_template_version`**, **`variance_detection_rule`**, **`revenue_variance_case`**, **`revenue_variance_explanation`**, **`notification_outbox`** (Phase 7).
 
 | Phase | Policy intent |
 |-------|----------------|
@@ -908,6 +1029,7 @@ Optional **1:1** extension for **session** and **SSO expectation** fields when n
 | **4** | **HubSpot / integration:** Same `tenant_id` isolation; connection tokens and sync metadata visible only to **`it_admin`** (and roles product extends) at the **API** layer — RLS enforces tenant boundary, not OAuth delegation. |
 | **5** | **FX / forecast / cost / segments:** Tenant isolation on all new fact tables; **Finance**-sensitive uploads (rates, forecasts, costs) enforced at **API** role layer as for ingestion — RLS does not replace role checks for governance actions. |
 | **6** | **SSO / governance:** All Phase 6 tables are **`tenant_id`-scoped**; **`user_federated_identity`** must match **`app.user_id`** on self-service reads where applicable. **JWT/session** must still carry **application** `tenant_id` and **org/BU** scope — IdP claims **do not** replace **`user_org_role`**; defense-in-depth with app-layer checks (Story 6.1 / architect open question 6). |
+| **7** | **Variance & notifications:** Same **`tenant_id`** isolation; **org/BU** visibility for cases must mirror **`user_org_role`** + **`user_business_unit_access`** semantics used for `fact_revenue` (Story 7.1–7.3). **API** role checks remain mandatory for **explain** and **dismiss** actions. |
 
 **Example (Phase 1):**
 
@@ -986,4 +1108,12 @@ See **`docs/architecture/phase-6-changes.md`** for delta vs Phase 5, open archit
 
 ---
 
-**Status:** APPROVED · **2026-04-06** (Phase 5–6 architecture baseline) — Source of truth. No implementation deviation without `@technical-architect` review. This document must stay aligned with implemented Alembic revisions; update both together.
+## 12. Phase 7 — Customer revenue matrix, variance, workbook template I/O
+
+Phase 7 DDL is defined in **§3.7** (`dim_customer.customer_name_common`), **§3.36–§3.40** (`workbook_template_version`, `variance_detection_rule`, `revenue_variance_case`, `revenue_variance_explanation`, `notification_outbox`). **Facts** remain in **`fact_revenue`** — the matrix is a **presentation and aggregation** layer on top of existing hierarchy + customer grain, using the **same** revenue definition as Phase 2 analytics (`guidelines-for-tech-lead.md` §11a). **Template import** v1 ingests **value rows only** from `Sheet1`; delta rows in the workbook are **skipped** (see [`phase-7-changes.md`](phase-7-changes.md), [`phase-7-implementation-handoff.md`](phase-7-implementation-handoff.md)).
+
+See **`docs/architecture/phase-7-changes.md`** for API/service intent and risks.
+
+---
+
+**Status:** APPROVED · **2026-04-06** (Phase 5–6 architecture baseline); **Phase 7** §3.7 / §3.36–§3.40 / §12 — **2026-04-08** (additive; implement via Alembic). Source of truth. No implementation deviation without `@technical-architect` review. This document must stay aligned with implemented Alembic revisions; update both together.

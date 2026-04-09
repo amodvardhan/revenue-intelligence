@@ -85,12 +85,10 @@ export function NLQueryPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-white via-cyan-50/30 to-indigo-50/20 p-8 shadow-card">
-        <div className="pointer-events-none absolute right-0 top-0 h-32 w-32 rounded-full bg-indigo-300/20 blur-3xl" aria-hidden />
-        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Natural language</p>
-        <h1 className="text-display mt-2 text-3xl">Ask revenue</h1>
-        <p className="mt-2 max-w-2xl text-small">
+    <div className="mx-auto max-w-4xl px-6 py-10">
+      <header className="border-b border-black/[0.06] pb-8">
+        <h1 className="page-headline">Ask revenue</h1>
+        <p className="page-lede">
           Ask questions in plain language. Answers use the same revenue definitions as Analytics — governed, read-only
           execution.
         </p>
@@ -98,11 +96,11 @@ export function NLQueryPage() {
 
       <div className="mt-8 max-w-3xl space-y-5">
         <div className="surface-card flex flex-wrap items-end gap-3 p-4">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            Organization (optional)
+          <label className="block w-full max-w-md">
+            <span className="small-caps-label">Organization (optional)</span>
             <input
               type="text"
-              className="input-modern mt-1.5 ml-0 block w-full max-w-md font-mono text-xs sm:ml-0"
+              className="input-modern mt-2 block w-full font-mono text-[13px]"
               placeholder="org UUID"
               value={orgId}
               onChange={(e) => setOrgId(e.target.value.trim())}

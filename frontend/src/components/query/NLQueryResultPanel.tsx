@@ -16,7 +16,7 @@ export function NLQueryResultPanel({ columns, rows }: NLQueryResultPanelProps) {
     <div className="mt-4 overflow-x-auto rounded-2xl border border-border/80 bg-white shadow-card">
       <table className="min-w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border bg-gradient-to-r from-slate-50 to-teal-50/30 text-left">
+          <tr className="border-b border-black/[0.06] bg-neutral-50/80 text-left">
             {columns.map((c) => (
               <th key={c} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 {c.replace(/_/g, " ")}
@@ -26,7 +26,7 @@ export function NLQueryResultPanel({ columns, rows }: NLQueryResultPanelProps) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-slate-100/90 transition-colors hover:bg-teal-50/30">
+            <tr key={i} className="border-b border-black/[0.04] transition-colors hover:bg-neutral-50/80">
               {columns.map((c) => (
                 <td
                   key={c}

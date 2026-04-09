@@ -571,8 +571,8 @@ async def test_story_6_2_export_rows_include_user_email_for_accountability(
         headers={"Authorization": f"Bearer {token}"},
         json={
             "event_families": ["sso_security"],
-            "created_from": "2026-01-01T00:00:00Z",
-            "created_to": "2026-04-06T23:59:59Z",
+            "created_from": "2026-04-01T00:00:00Z",
+            "created_to": "2026-04-30T23:59:59Z",
             "format": "csv",
         },
     )

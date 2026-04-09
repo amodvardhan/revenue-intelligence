@@ -21,6 +21,7 @@ class ValidatedRow:
     division: str | None
     customer: str | None
     revenue_type: str | None
+    customer_name_common: str | None = None
 
 
 @dataclass
@@ -179,5 +180,6 @@ def _validate_data_row(
         division=div,
         customer=opt_str("customer"),
         revenue_type=opt_str("revenue_type"),
+        customer_name_common=None,
     )
     return [], row

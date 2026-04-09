@@ -93,6 +93,7 @@ async def _ensure_customer(
     org_id: UUID,
     name: str | None,
     cache: dict[tuple[UUID, str], UUID],
+    name_common: str | None = None,
 ) -> UUID | None:
     if not name:
         return None
@@ -109,10 +110,12 @@ async def _ensure_customer(
         .limit(1)
     )
     cid = (await session.execute(stmt)).scalar_one_or_none()
+    common_val = (name_common.strip() if name_common else "") or name
     if cid is None:
         row = DimCustomer(
             tenant_id=tenant_id,
             customer_name=name,
+            customer_name_common=common_val,
             org_id=org_id,
         )
         session.add(row)
@@ -167,7 +170,14 @@ async def insert_revenue_facts(
     for row in validated_rows:
         bu_id = await _ensure_bu(session, tenant_id, org_id, row.business_unit, bu_cache)
         div_id = await _ensure_division(session, tenant_id, bu_id, row.division, div_cache)
-        cust_id = await _ensure_customer(session, tenant_id, org_id, row.customer, cust_cache)
+        cust_id = await _ensure_customer(
+            session,
+            tenant_id,
+            org_id,
+            row.customer,
+            cust_cache,
+            name_common=row.customer_name_common,
+        )
         rt_id = await _ensure_revenue_type(session, tenant_id, row.revenue_type, rt_cache)
 
         external_id = f"excel:{batch_id}:{row.row_index}"

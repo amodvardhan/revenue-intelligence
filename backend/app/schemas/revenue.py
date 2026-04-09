@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -27,3 +28,29 @@ class RevenueRow(BaseModel):
 class RevenueListResponse(BaseModel):
     items: list[RevenueRow]
     next_cursor: str | None = None
+
+
+class MatrixMonthColumn(BaseModel):
+    """Month bucket (typically first of month) for matrix header."""
+
+    key: str
+    label: str
+
+
+class MatrixLine(BaseModel):
+    """One visual row: value (imported) or delta (MoM, computed for display)."""
+
+    row_type: Literal["value", "delta"]
+    sr_no: int | None = None
+    customer_legal: str = ""
+    customer_common: str | None = None
+    amounts: list[str]
+
+
+class RevenueMatrixResponse(BaseModel):
+    """Customer × month grid aligned to EUROPE-style workbook layout."""
+
+    currency_code: str
+    month_columns: list[MatrixMonthColumn]
+    lines: list[MatrixLine]
+    empty_reason: str | None = None

@@ -49,8 +49,8 @@ export function FilePreviewTable({
         <table className="min-w-full border-collapse text-sm">
           <thead>
             <tr className="bg-surface-subtle text-left text-body-strong">
-              {headers.map((h) => (
-                <th key={h} className="border-b border-border px-3 py-2 font-medium">
+              {headers.map((h, i) => (
+                <th key={`col-${i}-${String(h)}`} className="border-b border-border px-3 py-2 font-medium">
                   {h}
                 </th>
               ))}

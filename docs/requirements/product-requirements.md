@@ -5,7 +5,7 @@
 | **Document status** | **APPROVED** |
 | **Approval date** | **3 April 2026** |
 | **Approved by** | Product Owner |
-| **Phase 1 lock** | **LOCKED** — Product requirements for **Phase 1 (Core Schema + Excel Import)** are frozen as of the approval date. Implementation, QA, and design SHALL align with Phase 1 as stated in this document. Any change to Phase 1 scope, acceptance criteria, or the approved decisions in §5 requires a **written change request** and **Product Owner re-approval** (updated status block and revision note). **Phases 2–6** are described in Section 3; **Phase 6** authoritative requirements and **Approved product decisions** are in [`phase-6-requirements.md`](phase-6-requirements.md) (approved **6 April 2026**). |
+| **Phase 1 lock** | **LOCKED** — Product requirements for **Phase 1 (Core Schema + Excel Import)** are frozen as of the approval date. Implementation, QA, and design SHALL align with Phase 1 as stated in this document. Any change to Phase 1 scope, acceptance criteria, or the approved decisions in §5 requires a **written change request** and **Product Owner re-approval** (updated status block and revision note). **Phases 2–6** are described in Section 3 and remain **unchanged**; **Phase 6** authoritative requirements and **Approved product decisions** are in [`phase-6-requirements.md`](phase-6-requirements.md) (approved **6 April 2026**). **Phase 7** is **additive only**; authoritative requirements are in [`phase-7-requirements.md`](phase-7-requirements.md) (approved **8 April 2026**). |
 
 **Document type:** Product requirements (vision, personas, phased deliverables, NFRs, approved decisions)  
 **Source context:** `.cursorrules/cursor.md`, Product Owner phase contract  
@@ -319,6 +319,34 @@ Each phase must be complete before the next begins. Phases follow `.cursorrules`
 
 ---
 
+### Phase 7: Customer Revenue Operations & Standardized Workbook I/O
+
+**Phase goal:** Give operations and delivery leaders **customer-wise** revenue visibility, **hierarchical comparisons** (organization → business unit → division → customer), **discrepancy** handling with **email** to the **delivery manager** and a **variance explanation** experience, and an **Excel-like** matrix with **accessible** green/red **at-a-glance** movement—plus **standardized** import/export aligned to an agreed workbook layout.
+
+**Business value delivered:** Delivery directors work in a familiar spreadsheet-shaped view; Finance and operations share one **canonical** template (see reference [`samples/EUROPE_Weekly Commercial Dashboard.xlsx`](../samples/EUROPE_Weekly%20Commercial%20Dashboard.xlsx)); variances are **accountable** and **auditable**.
+
+**Authoritative detail:** User stories **7.1–7.5**, **Approved product decisions**, reference workbook analysis, and **out of scope** items are **locked** for Phase 7 in [`phase-7-requirements.md`](phase-7-requirements.md). **Architectural** and **database** deltas for implementation are in [`docs/architecture/phase-7-changes.md`](../architecture/phase-7-changes.md) (`@technical-architect`). **Cross-team implementation handoff** (technical lead, UX/UI, QA): [`docs/architecture/phase-7-implementation-handoff.md`](../architecture/phase-7-implementation-handoff.md).
+
+#### User stories (summary)
+
+**Story 7.1 — Customer-wise revenue** — First-class **customer** grain with correct roll-up under **division → BU → org**.
+
+**Story 7.2 — Hierarchical comparison** — Compare revenue **per customer** and **per division** within **BU** under **organization**, with reconciliation to parent totals.
+
+**Story 7.3 — Discrepancies and explanations** — Configurable **rules** surface discrepancies; **email** the **delivery manager** with a link to record a **reason** for **up** or **down** movement; **audited** explanations.
+
+**Story 7.4 — Excel-like grid** — **Delivery director** matrix: **green** / **red** (with non-color cues) for growth / decline vs agreed comparison.
+
+**Story 7.5 — Standardized import/export** — **Canonical** layout: **Sr. No.**, **Customer Name (legal)**, **Customer Name (common)**, **13** monthly columns from **Dec-25** through **Dec-26** pattern; validation and **versioned** template.
+
+**Explicitly out of scope for Phase 7 (see [`phase-7-requirements.md`](phase-7-requirements.md) for full list)**
+
+- Changing **Phases 1–6** locked requirements; Phase 7 builds **on top**.
+- **Mandatory** ingest of all auxiliary sheets in the reference workbook beyond agreed **v1** scope.
+- Full **workflow** approval chains beyond **explain / audit**.
+
+---
+
 ## 4. Non-Functional Requirements
 
 ### Performance expectations
@@ -386,3 +414,4 @@ These items remain **subject to legal, enterprise sales, or pilot customer** con
 |------|--------|
 | 3 April 2026 | Document APPROVED; Phase 1 requirements locked; §5 finalized as approved product decisions. |
 | 6 April 2026 | **Phase 6** added to Section 3 (Enterprise Identity & Pilot Governance); pointer to **approved** [`phase-6-requirements.md`](phase-6-requirements.md); status block updated. |
+| 8 April 2026 | **Phase 7** added to Section 3 (Customer Revenue Operations & Standardized Workbook I/O); pointer to **approved** [`phase-7-requirements.md`](phase-7-requirements.md), [`docs/architecture/phase-7-changes.md`](../architecture/phase-7-changes.md), and [`docs/architecture/phase-7-implementation-handoff.md`](../architecture/phase-7-implementation-handoff.md); **Phases 1–6** text unchanged in substance. |

@@ -152,13 +152,15 @@ export function ImportPage() {
   }, [firstOrg, setValue]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-      <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-white via-white to-amber-50/20 p-8 shadow-card">
-        <div className="pointer-events-none absolute -left-8 -top-8 h-36 w-36 rounded-full bg-amber-200/30 blur-3xl" aria-hidden />
-        <p className="text-xs font-semibold uppercase tracking-widest text-amber-700/80">Data pipeline</p>
-        <h1 className="text-display mt-2 text-3xl">Import</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted">
-          Upload Excel with columns: amount, revenue_date; optional business_unit, division, customer, revenue_type.
+    <div className="mx-auto max-w-4xl space-y-8 px-6 py-10">
+      <header className="border-b border-black/[0.06] pb-8">
+        <h1 className="page-headline">Import</h1>
+        <p className="page-lede">
+          Use the <strong className="font-medium text-ink">EUROPE Weekly Commercial</strong> workbook (Sheet1, row 2
+          headers: Sr. No., Customer names, monthly columns) or a classic file with{" "}
+          <span className="font-mono text-[13px]">amount</span>,{" "}
+          <span className="font-mono text-[13px]">revenue_date</span>
+          ; optional business_unit, division, customer, revenue_type.
         </p>
       </header>
 
@@ -171,9 +173,9 @@ export function ImportPage() {
       >
         <div className="surface-card grid gap-4 p-5 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Organization</label>
+            <label className="small-caps-label mb-1.5 block">Organization</label>
             <select
-              className="input-modern h-10 w-full"
+              className="input-modern !h-10 w-full"
               {...register("org_id", { required: true })}
               defaultValue={firstOrg}
             >
@@ -187,16 +189,16 @@ export function ImportPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Period start</label>
-              <input type="date" className="input-modern h-10 w-full" {...register("period_start")} />
+              <label className="small-caps-label mb-1.5 block">Period start</label>
+              <input type="date" className="input-modern !h-10 w-full" {...register("period_start")} />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Period end</label>
-              <input type="date" className="input-modern h-10 w-full" {...register("period_end")} />
+              <label className="small-caps-label mb-1.5 block">Period end</label>
+              <input type="date" className="input-modern !h-10 w-full" {...register("period_end")} />
             </div>
           </div>
         </div>
-        <label className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-amber-50/50 px-4 py-3 text-sm text-amber-950">
+        <label className="flex items-center gap-3 rounded-[10px] border border-black/[0.08] bg-amber-50/80 px-4 py-3 text-[13px] leading-snug text-neutral-900">
           <input
             type="checkbox"
             {...register("replace", {
@@ -250,7 +252,7 @@ export function ImportPage() {
         <button
           type="submit"
           disabled={!file || !orgId || upload.isPending}
-          className="h-11 rounded-xl bg-gradient-to-r from-primary to-teal-500 px-8 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition hover:brightness-105 disabled:opacity-50"
+          className="btn-primary-solid px-8 disabled:cursor-not-allowed"
         >
           {upload.isPending ? "Importing…" : "Start import"}
         </button>
