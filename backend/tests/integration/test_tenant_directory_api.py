@@ -114,3 +114,18 @@ async def test_tenant_users_duplicate_email(async_client: AsyncClient, db_sessio
         json={"email": nu, "password": "password99", "org_id": org_id, "role": "viewer"},
     )
     assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_tenant_users_create_account_manager_and_delivery_manager_roles(
+    async_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    token, org_id = await _seed_admin(db_session)
+    for role in ("account_manager", "delivery_manager"):
+        email = f"{role}-{uuid4().hex[:8]}@example.com"
+        r = await async_client.post(
+            "/api/v1/tenant/users",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"email": email, "password": "password88", "org_id": org_id, "role": role},
+        )
+        assert r.status_code == 201, r.text

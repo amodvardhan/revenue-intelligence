@@ -18,9 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.semantic_layer import load_semantic_bundle
 from app.models.audit import QueryAuditLog
+from app.models.dimensions import DimBusinessUnit
 from app.models.nl_semantic import NlQuerySession, SemanticLayerVersion
 from app.models.tenant import User
-from app.services.access_scope import accessible_org_ids
+from app.services.access_scope import accessible_org_ids, business_unit_scope
 from app.services.analytics.service import revenue_compare, revenue_rollup
 from app.services.query_engine.exceptions import (
     LlmUnavailableError,
@@ -29,10 +30,12 @@ from app.services.query_engine.exceptions import (
 )
 from app.core.config import get_settings
 from app.services.query_engine.llm import complete_nl_plan
+from app.services.query_engine.nl_calendar import merge_explicit_calendar_month_into_plan
+from app.services.query_engine.nl_entity import merge_resolved_entity_into_plan
 
 logger = logging.getLogger(__name__)
 
-Hierarchy = Literal["org", "bu", "division"]
+Hierarchy = Literal["org", "bu", "division", "customer"]
 CompareKind = Literal["mom", "qoq", "yoy"]
 
 MAX_DATE_SPAN_DAYS = 366 * 10
@@ -184,8 +187,10 @@ def _validate_plan(plan: dict[str, Any]) -> None:
     if intent not in ("rollup", "compare"):
         raise QueryUnsafeError("Unsupported or missing intent")
     h = plan.get("hierarchy")
-    if h not in ("org", "bu", "division"):
+    if h not in ("org", "bu", "division", "customer"):
         raise QueryUnsafeError("Invalid hierarchy")
+    if h == "customer" and _parse_uuid(plan.get("customer_id")) is None:
+        raise QueryUnsafeError("Missing customer for customer hierarchy")
     if intent == "rollup":
         d0 = _parse_date(plan.get("revenue_date_from"))
         d1 = _parse_date(plan.get("revenue_date_to"))
@@ -217,9 +222,33 @@ async def _execute_plan(
     intent = plan["intent"]
     hierarchy: Hierarchy = plan["hierarchy"]
     org_from_plan = _parse_uuid(plan.get("org_id"))
-    effective_org = org_filter or org_from_plan
-    if effective_org is not None and effective_org not in accessible:
-        raise QueryUnsafeError("Organization is not in your access scope")
+    bu_from_plan = _parse_uuid(plan.get("business_unit_id"))
+    cust_from_plan = _parse_uuid(plan.get("customer_id"))
+
+    if bu_from_plan is not None:
+        bu_row = await session.scalar(
+            select(DimBusinessUnit).where(
+                DimBusinessUnit.business_unit_id == bu_from_plan,
+                DimBusinessUnit.tenant_id == user.tenant_id,
+            )
+        )
+        if bu_row is None:
+            raise QueryUnsafeError("Business unit not found")
+        if bu_row.org_id not in accessible:
+            raise QueryUnsafeError("Organization is not in your access scope")
+        mode_bu, allowed_bu = await business_unit_scope(session, user.user_id)
+        if mode_bu == "restricted" and bu_from_plan not in set(allowed_bu):
+            raise QueryUnsafeError("Business unit is not in your access scope")
+        if org_filter is not None and bu_row.org_id != org_filter:
+            raise QueryUnsafeError(
+                "The selected organization does not match this business unit. "
+                "Clear the organization filter above or choose the organization that contains this BU."
+            )
+        effective_org = bu_row.org_id
+    else:
+        effective_org = org_filter or org_from_plan
+        if effective_org is not None and effective_org not in accessible:
+            raise QueryUnsafeError("Organization is not in your access scope")
 
     if intent == "rollup":
         d0 = _parse_date(plan["revenue_date_from"])
@@ -233,10 +262,10 @@ async def _execute_plan(
             revenue_date_from=d0,
             revenue_date_to=d1,
             org_id=effective_org,
-            business_unit_id=None,
+            business_unit_id=bu_from_plan,
             division_id=None,
             revenue_type_id=None,
-            customer_id=None,
+            customer_id=cust_from_plan,
         )
         rows = payload["rows"]
         if hierarchy == "org":
@@ -246,6 +275,15 @@ async def _execute_plan(
             cols = ["business_unit_name", "total_revenue"]
             out = [
                 {"business_unit_name": r["business_unit_name"], "total_revenue": r["revenue"]}
+                for r in rows
+            ]
+        elif hierarchy == "customer":
+            cols = ["customer_name", "total_revenue"]
+            out = [
+                {
+                    "customer_name": r.get("display_name") or r.get("customer_name"),
+                    "total_revenue": r["revenue"],
+                }
                 for r in rows
             ]
         else:
@@ -273,10 +311,10 @@ async def _execute_plan(
         comparison_period_from=bf,
         comparison_period_to=bt,
         org_id=effective_org,
-        business_unit_id=None,
+        business_unit_id=bu_from_plan,
         division_id=None,
         revenue_type_id=None,
-        customer_id=None,
+        customer_id=cust_from_plan,
     )
     rows = payload["rows"]
     if hierarchy == "bu":
@@ -308,6 +346,24 @@ async def _execute_plan(
         out = [
             {
                 "org_name": r.get("org_name"),
+                "current_revenue": r.get("current_revenue"),
+                "comparison_revenue": r.get("comparison_revenue"),
+                "absolute_change": r.get("absolute_change"),
+                "percent_change": r.get("percent_change"),
+            }
+            for r in rows
+        ]
+    elif hierarchy == "customer":
+        cols = [
+            "customer_name",
+            "current_revenue",
+            "comparison_revenue",
+            "absolute_change",
+            "percent_change",
+        ]
+        out = [
+            {
+                "customer_name": r.get("display_name") or r.get("customer_name"),
                 "current_revenue": r.get("current_revenue"),
                 "comparison_revenue": r.get("comparison_revenue"),
                 "absolute_change": r.get("absolute_change"),
@@ -476,6 +532,15 @@ async def run_natural_language_query(
         pending = nl_session.pending_context or {}
         audit_question = str(pending.get("question", question))
         plan = _apply_clarifications(pending, clarifications)
+        plan = merge_explicit_calendar_month_into_plan(plan, audit_question)
+        plan = await merge_resolved_entity_into_plan(
+            session,
+            user,
+            audit_question,
+            plan,
+            accessible_org_ids=accessible,
+            org_id_hint=org_id,
+        )
         _validate_plan(plan)
     else:
         try:
@@ -483,6 +548,10 @@ async def run_natural_language_query(
         except LlmUnavailableError:
             raise
         plan = raw_plan if isinstance(raw_plan, dict) else {}
+        plan = merge_explicit_calendar_month_into_plan(plan, question)
+        plan = await merge_resolved_entity_into_plan(
+            session, user, question, plan, accessible_org_ids=accessible, org_id_hint=org_id
+        )
         if plan.get("needs_clarification"):
             prompts = plan.get("clarification_prompts") or []
             if not prompts:

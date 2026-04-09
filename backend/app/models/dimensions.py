@@ -43,7 +43,10 @@ class UserOrgRole(Base):
     __tablename__ = "user_org_role"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('admin', 'cxo', 'bu_head', 'finance', 'viewer', 'it_admin')",
+            "role IN ("
+            "'admin', 'cxo', 'bu_head', 'finance', 'viewer', 'it_admin', "
+            "'account_manager', 'delivery_manager'"
+            ")",
             name="ck_user_org_role_role",
         ),
         Index("idx_user_org_role_org", "org_id"),

@@ -25,6 +25,8 @@ const ROLE_OPTIONS = [
   { value: "viewer", label: "Viewer" },
   { value: "cxo", label: "CXO" },
   { value: "bu_head", label: "BU head" },
+  { value: "account_manager", label: "Account manager (AM)" },
+  { value: "delivery_manager", label: "Delivery manager (DM)" },
   { value: "finance", label: "Finance" },
   { value: "admin", label: "Admin" },
   { value: "it_admin", label: "IT admin" },

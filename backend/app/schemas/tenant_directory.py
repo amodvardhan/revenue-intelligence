@@ -29,7 +29,16 @@ class CreateTenantUserBody(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     org_id: UUID
-    role: Literal["viewer", "cxo", "bu_head", "finance", "admin", "it_admin"]
+    role: Literal[
+        "viewer",
+        "cxo",
+        "bu_head",
+        "finance",
+        "admin",
+        "it_admin",
+        "account_manager",
+        "delivery_manager",
+    ]
 
 
 class CreateTenantUserResponse(BaseModel):

@@ -18,7 +18,18 @@ from app.models.tenant import User
 security_scheme = HTTPBearer(auto_error=False)
 
 INGEST_ROLES = frozenset({"finance", "admin", "it_admin"})
-NL_QUERY_ROLES = frozenset({"viewer", "cxo", "bu_head", "finance", "admin", "it_admin"})
+NL_QUERY_ROLES = frozenset(
+    {
+        "viewer",
+        "cxo",
+        "bu_head",
+        "finance",
+        "admin",
+        "it_admin",
+        "account_manager",
+        "delivery_manager",
+    }
+)
 QUERY_AUDIT_ROLES = frozenset({"finance", "it_admin", "admin"})
 
 HUBSPOT_CONNECT_ROLES = frozenset({"it_admin", "admin"})
@@ -30,7 +41,9 @@ HUBSPOT_CONFLICT_PATCH_ROLES = frozenset({"finance", "it_admin", "admin"})
 
 PHASE5_UPLOAD_ROLES = frozenset({"finance", "admin", "it_admin"})
 MATRIX_EDIT_ROLES = frozenset({"finance", "admin", "bu_head", "it_admin"})
-DM_ASSIGNMENT_ROLES = frozenset({"finance", "admin", "bu_head", "it_admin"})
+DM_ASSIGNMENT_ROLES = frozenset(
+    {"finance", "admin", "bu_head", "it_admin", "account_manager"}
+)
 TENANT_SETTINGS_WRITE_ROLES = frozenset({"admin", "it_admin", "finance"})
 SEGMENT_DEFINITION_ROLES = frozenset({"bu_head", "finance", "admin", "it_admin"})
 COST_RULE_ROLES = frozenset({"finance", "admin"})

@@ -472,8 +472,9 @@ export function RevenuePage() {
     revenue.isSuccess &&
     (!phase7 || (matrix.isSuccess && matrix.data?.empty_reason === "no_customer_facts"));
 
-  const matrixChartSeries = useMemo(() => {
-    if (!matrix.data?.month_columns?.length || !matrix.data.lines.length) return [];
+  /** Per-month sum of all customer value rows (same basis as the matrix and chart). */
+  const matrixMonthTotals = useMemo(() => {
+    if (!matrix.data?.month_columns?.length || !matrix.data.lines.length) return [] as number[];
     const valueLines = matrix.data.lines.filter((l) => l.row_type === "value");
     const n = matrix.data.month_columns.length;
     const sums = new Array(n).fill(0);
@@ -482,11 +483,16 @@ export function RevenuePage() {
         if (i < n) sums[i] += parseAmountStr(a);
       });
     }
+    return sums;
+  }, [matrix.data]);
+
+  const matrixChartSeries = useMemo(() => {
+    if (!matrix.data?.month_columns?.length || matrixMonthTotals.length === 0) return [];
     return matrix.data.month_columns.map((c, i) => ({
       label: c.label,
-      total: sums[i],
+      total: matrixMonthTotals[i] ?? 0,
     }));
-  }, [matrix.data]);
+  }, [matrix.data, matrixMonthTotals]);
 
   const { series, totalAmount, dateMin, dateMax } = useMemo(() => {
     if (!revenue.data?.items.length) {
@@ -721,7 +727,7 @@ export function RevenuePage() {
                 <h2 className="text-heading text-[16px]">Customer–month matrix</h2>
                 <p className="mt-0.5 max-w-xl text-xs text-ink-muted">
                   Frozen row labels in the left pane; only months scroll on the right — nothing slides under the label
-                  columns. Use density to fit more months on screen.
+                  columns. The footer row is the sum of all customers per month. Use density to fit more months on screen.
                 </p>
               </div>
               <div
@@ -824,6 +830,24 @@ export function RevenuePage() {
                       );
                     })}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-neutral-200/90 bg-neutral-50/95 text-ink">
+                      <td
+                        className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} align-middle border-b border-border ${matrixStyle.tdSr}`}
+                        aria-hidden
+                      />
+                      <th
+                        scope="row"
+                        className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} max-w-0 truncate align-middle border-b border-border text-left text-[13px] font-semibold tracking-[-0.01em] text-ink`}
+                      >
+                        Total (all customers)
+                      </th>
+                      <td
+                        className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} align-middle border-b border-border ${matrixStyle.tdBody} text-ink-muted`}
+                        aria-hidden
+                      />
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
 
@@ -943,6 +967,32 @@ export function RevenuePage() {
                       );
                     })}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-neutral-200/90 bg-neutral-50/95 text-ink">
+                      {matrix.data.month_columns.map((_, j) => {
+                        const total = matrixMonthTotals[j] ?? 0;
+                        const formatted = total.toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                          minimumFractionDigits: 0,
+                        });
+                        return (
+                          <td
+                            key={`matrix-total-${j}`}
+                            className={`${matrixStyle.tdPad} ${matrixStyle.rowHe} align-middle whitespace-nowrap border-b border-border text-right font-mono text-[13px] font-semibold tabular-nums text-ink ${matrixStyle.tdMono}`}
+                          >
+                            {phase7 && j > 0 ? (
+                              <div className="flex w-full min-w-0 items-center">
+                                <div className="min-w-0 flex-1 overflow-hidden text-right">{formatted}</div>
+                                <div className="w-7 shrink-0" aria-hidden />
+                              </div>
+                            ) : (
+                              formatted
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>

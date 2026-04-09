@@ -26,8 +26,10 @@ Schema:
     }
   ],
   "intent": "rollup" | "compare" | null,
-  "hierarchy": "org" | "bu" | "division",
+  "hierarchy": "org" | "bu" | "division" | "customer",
   "org_id": string | null,
+  "customer_name": string | null,
+  "business_unit_name": string | null,
   "revenue_date_from": "YYYY-MM-DD" | null,
   "revenue_date_to": "YYYY-MM-DD" | null,
   "compare": "mom" | "qoq" | "yoy" | null,
@@ -42,9 +44,12 @@ Schema:
 Rules:
 - Use calendar quarters: Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec.
 - If the user names a quarter (e.g. Q3) without a year, set needs_clarification true, set calendar_quarter (required) to 1–4, and ask fiscal_year with two plausible calendar years (current and previous). Omitting calendar_quarter breaks follow-up resolution.
+- If the user names a calendar month together with any year — including short forms (Mar'26, Mar 26, March 2026, 03/2026) — set needs_clarification false, intent rollup, and revenue_date_from / revenue_date_to for that calendar month only. Never ask for fiscal year or "which FY" for March when the calendar year is already stated; map two-digit years as 20xx (e.g. 26 → 2026).
 - For "last month", "previous month", or a single named month without a year: set intent rollup and fill revenue_date_from / revenue_date_to for that one calendar month. Do not use fiscal_year + null calendar_quarter for that case.
 - For rollup intent, set revenue_date_from and revenue_date_to inclusive.
 - For compare intent, set all four period dates and compare (yoy unless user asked otherwise).
+- When the user asks for revenue for a named customer, client, or account (e.g. "for Acme", "revenue of WHO"), set hierarchy to "customer" and customer_name to the name as stated (normalized wording is OK). When they name an organization only, use hierarchy "org" or leave org_id null for the server to match.
+- When they name a business unit (BU), set hierarchy to "bu", set business_unit_name to the BU name (strip a leading "BU" if redundant), and leave customer_name null unless they also name a customer.
 - Never emit SQL. Never invent tables.
 """
 

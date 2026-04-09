@@ -13,7 +13,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password
-from app.models.dimensions import DimBusinessUnit, DimDivision, DimOrganization, UserOrgRole
+from app.models.dimensions import (
+    DimBusinessUnit,
+    DimCustomer,
+    DimDivision,
+    DimOrganization,
+    UserOrgRole,
+)
 from app.models.facts import FactRevenue
 from app.models.tenant import Tenant, User
 
@@ -75,6 +81,71 @@ async def _seed_nl_user(session: AsyncSession) -> tuple[str, str]:
             division_id=div.division_id,
             source_system="test",
             external_id=f"nl-{uid}-1",
+            batch_id=None,
+        )
+    )
+    await session.flush()
+
+    token = create_access_token(subject=str(user.user_id))
+    return token, str(org.org_id)
+
+
+async def _seed_nl_user_with_who_customer(session: AsyncSession) -> tuple[str, str]:
+    """Tenant with dim_customer WHO + March 2026 fact (customer-scoped NL)."""
+    tenant = Tenant(name=f"nlwho-{uuid4().hex[:8]}")
+    session.add(tenant)
+    await session.flush()
+
+    org = DimOrganization(tenant_id=tenant.tenant_id, org_name="e-Zest Digital Solutions")
+    session.add(org)
+    await session.flush()
+
+    bu = DimBusinessUnit(
+        tenant_id=tenant.tenant_id,
+        org_id=org.org_id,
+        business_unit_name="NL BU",
+    )
+    session.add(bu)
+    await session.flush()
+
+    div = DimDivision(
+        tenant_id=tenant.tenant_id,
+        business_unit_id=bu.business_unit_id,
+        division_name="NL Div",
+    )
+    session.add(div)
+    await session.flush()
+
+    cust = DimCustomer(
+        tenant_id=tenant.tenant_id,
+        customer_name="World Health Organization",
+        org_id=org.org_id,
+    )
+    session.add(cust)
+    await session.flush()
+
+    uid = uuid4().hex[:12]
+    user = User(
+        tenant_id=tenant.tenant_id,
+        email=f"nlwho-{uid}@example.com",
+        password_hash=hash_password("secret"),
+    )
+    session.add(user)
+    await session.flush()
+    session.add(UserOrgRole(user_id=user.user_id, org_id=org.org_id, role="finance"))
+
+    session.add(
+        FactRevenue(
+            tenant_id=tenant.tenant_id,
+            amount=Decimal("1292150.9400"),
+            currency_code="USD",
+            revenue_date=date(2026, 3, 10),
+            org_id=org.org_id,
+            business_unit_id=bu.business_unit_id,
+            division_id=div.division_id,
+            customer_id=cust.customer_id,
+            source_system="test",
+            external_id=f"nlwho-{uid}-1",
             batch_id=None,
         )
     )
@@ -195,6 +266,46 @@ async def test_nl_query_completed_with_mocked_llm(
     assert data["status"] == "completed"
     assert "business_unit_name" in data["columns"]
     assert len(data["rows"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_nl_query_resolves_named_business_unit_from_question(
+    phase3_tables: None,
+    async_client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BU-scoped questions must resolve dim_business_unit, not only dim_customer / dim_organization."""
+
+    async def _fake_llm(_q: str) -> dict:
+        return {
+            "needs_clarification": False,
+            "intent": "rollup",
+            "hierarchy": "bu",
+            "customer_name": "NL BU",
+            "revenue_date_from": "2026-07-01",
+            "revenue_date_to": "2026-09-30",
+            "interpretation": "Revenue for named BU",
+        }
+
+    monkeypatch.setattr("app.services.query_engine.service.complete_nl_plan", _fake_llm)
+    _patch_nl_settings(monkeypatch, _SettingsNL)
+
+    token, org_id = await _seed_nl_user(db_session)
+
+    r = await async_client.post(
+        "/api/v1/query/natural-language",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "question": "overall growth of the BU NL BU",
+            "org_id": org_id,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "completed"
+    assert len(data["rows"]) == 1
+    assert data["rows"][0]["business_unit_name"] == "NL BU"
 
 
 @pytest.mark.asyncio
@@ -360,6 +471,90 @@ async def test_story_3_3_disambiguation_round_trip(
     second = r2.json()
     assert second["status"] == "completed"
     assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_explicit_month_year_skips_fiscal_year_clarification(
+    phase3_tables: None,
+    async_client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """User text like mar'26 is resolved to a calendar month; do not prompt for FY."""
+
+    async def _fake_llm(_q: str) -> dict:
+        return {
+            "needs_clarification": True,
+            "clarification_prompts": [
+                {
+                    "prompt_id": "fiscal_year",
+                    "text": "Please specify the fiscal year for March.",
+                    "choices": [{"id": "2025", "label": "FY 2025"}, {"id": "2026", "label": "FY 2026"}],
+                }
+            ],
+            "intent": "rollup",
+            "hierarchy": "bu",
+            "calendar_quarter": 1,
+            "interpretation": "March (year unclear)",
+        }
+
+    monkeypatch.setattr("app.services.query_engine.service.complete_nl_plan", _fake_llm)
+    _patch_nl_settings(monkeypatch, _SettingsNL)
+
+    token, org_id = await _seed_nl_user(db_session)
+
+    r = await async_client.post(
+        "/api/v1/query/natural-language",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "question": "What was Mar'26 revenue by business unit",
+            "org_id": org_id,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_nl_question_with_customer_phrase_resolves_dim_customer(
+    phase3_tables: None,
+    async_client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Named customer in plain language maps to dim_customer — not a generic org rollup."""
+
+    async def _fake_llm(_q: str) -> dict:
+        return {
+            "needs_clarification": False,
+            "intent": "rollup",
+            "hierarchy": "org",
+            "revenue_date_from": "2026-03-01",
+            "revenue_date_to": "2026-03-31",
+            "interpretation": "rollup",
+        }
+
+    monkeypatch.setattr("app.services.query_engine.service.complete_nl_plan", _fake_llm)
+    _patch_nl_settings(monkeypatch, _SettingsNL)
+
+    token, org_id = await _seed_nl_user_with_who_customer(db_session)
+
+    r = await async_client.post(
+        "/api/v1/query/natural-language",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "question": "What was the Mar'26 revenue for World health Orgnization",
+            "org_id": org_id,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "completed"
+    assert "customer_name" in data["columns"]
+    assert len(data["rows"]) == 1
+    assert "World Health Organization" in data["rows"][0]["customer_name"]
+    assert data["rows"][0]["total_revenue"] == "1292150.9400"
 
 
 @pytest.mark.asyncio

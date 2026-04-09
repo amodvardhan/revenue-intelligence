@@ -3,13 +3,13 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 
 import { NLQuerySafetyMessage } from "@/components/query/NLQuerySafetyMessage";
-import { api } from "@/services/api";
+import { api, extractApiErrorMessage } from "@/services/api";
 import type { AuditListResponse } from "@/types/query";
 
 function apiErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err) && err.response?.data && typeof err.response.data === "object") {
-    const d = err.response.data as { error?: { message?: string } };
-    if (d.error?.message) return d.error.message;
+  if (axios.isAxiosError(err) && err.response?.data) {
+    const msg = extractApiErrorMessage(err.response.data);
+    if (msg) return msg;
   }
   return err instanceof Error ? err.message : "Request failed";
 }

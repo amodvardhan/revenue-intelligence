@@ -7,7 +7,7 @@ import { NLQueryComposer } from "@/components/query/NLQueryComposer";
 import { NLQueryResultPanel } from "@/components/query/NLQueryResultPanel";
 import { NLQuerySafetyMessage } from "@/components/query/NLQuerySafetyMessage";
 import { ResolvedInterpretationPanel } from "@/components/query/ResolvedInterpretationPanel";
-import { api } from "@/services/api";
+import { api, extractApiErrorMessage } from "@/services/api";
 import type {
   ClarificationQuestion,
   NaturalLanguageRequest,
@@ -20,9 +20,9 @@ function isCompleted(r: NaturalLanguageResponse): r is NaturalLanguageResponseCo
 }
 
 function apiErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err) && err.response?.data && typeof err.response.data === "object") {
-    const d = err.response.data as { error?: { message?: string } };
-    if (d.error?.message) return d.error.message;
+  if (axios.isAxiosError(err) && err.response?.data) {
+    const msg = extractApiErrorMessage(err.response.data);
+    if (msg) return msg;
   }
   return err instanceof Error ? err.message : "Request failed";
 }
