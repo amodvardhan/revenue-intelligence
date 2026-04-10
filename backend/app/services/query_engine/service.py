@@ -30,8 +30,16 @@ from app.services.query_engine.exceptions import (
 )
 from app.core.config import get_settings
 from app.services.query_engine.llm import complete_nl_plan
-from app.services.query_engine.nl_calendar import merge_explicit_calendar_month_into_plan
-from app.services.query_engine.nl_entity import merge_resolved_entity_into_plan
+from app.services.query_engine.nl_calendar import (
+    apply_variance_month_to_plan,
+    merge_explicit_calendar_month_into_plan,
+)
+from app.services.query_engine.nl_entity import (
+    merge_resolved_entity_into_plan,
+    merge_variance_entities_into_plan,
+)
+from app.services.query_engine.nl_heuristics import coerce_plan_toward_variance_if_needed
+from app.services.query_engine.nl_variance import execute_variance_comment_plan
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +192,13 @@ def _validate_date_span(d0: date, d1: date) -> None:
 
 def _validate_plan(plan: dict[str, Any]) -> None:
     intent = plan.get("intent")
+    if intent == "variance_comment":
+        vm = _parse_date(plan.get("variance_revenue_month"))
+        if vm is None:
+            raise QueryUnsafeError(
+                "Missing or invalid variance month — name the month (e.g. April 2026 or March 2026 to April 2026)."
+            )
+        return
     if intent not in ("rollup", "compare"):
         raise QueryUnsafeError("Unsupported or missing intent")
     h = plan.get("hierarchy")
@@ -218,6 +233,14 @@ async def _execute_plan(
     accessible: set[uuid.UUID],
 ) -> tuple[list[str], list[dict[str, Any]], str]:
     """Return columns, rows, semantic_version_label."""
+    if plan.get("intent") == "variance_comment":
+        return await execute_variance_comment_plan(
+            session,
+            user=user,
+            plan=plan,
+            org_filter=org_filter,
+            accessible=accessible,
+        )
     bundle = load_semantic_bundle()
     intent = plan["intent"]
     hierarchy: Hierarchy = plan["hierarchy"]
@@ -533,14 +556,25 @@ async def run_natural_language_query(
         audit_question = str(pending.get("question", question))
         plan = _apply_clarifications(pending, clarifications)
         plan = merge_explicit_calendar_month_into_plan(plan, audit_question)
-        plan = await merge_resolved_entity_into_plan(
-            session,
-            user,
-            audit_question,
-            plan,
-            accessible_org_ids=accessible,
-            org_id_hint=org_id,
-        )
+        plan = apply_variance_month_to_plan(plan, audit_question)
+        if plan.get("intent") == "variance_comment":
+            plan = await merge_variance_entities_into_plan(
+                session,
+                user,
+                audit_question,
+                plan,
+                accessible_org_ids=accessible,
+                org_id_hint=org_id,
+            )
+        else:
+            plan = await merge_resolved_entity_into_plan(
+                session,
+                user,
+                audit_question,
+                plan,
+                accessible_org_ids=accessible,
+                org_id_hint=org_id,
+            )
         _validate_plan(plan)
     else:
         try:
@@ -548,10 +582,22 @@ async def run_natural_language_query(
         except LlmUnavailableError:
             raise
         plan = raw_plan if isinstance(raw_plan, dict) else {}
+        plan = coerce_plan_toward_variance_if_needed(plan, question)
         plan = merge_explicit_calendar_month_into_plan(plan, question)
-        plan = await merge_resolved_entity_into_plan(
-            session, user, question, plan, accessible_org_ids=accessible, org_id_hint=org_id
-        )
+        plan = apply_variance_month_to_plan(plan, question)
+        if plan.get("intent") == "variance_comment":
+            plan = await merge_variance_entities_into_plan(
+                session,
+                user,
+                question,
+                plan,
+                accessible_org_ids=accessible,
+                org_id_hint=org_id,
+            )
+        else:
+            plan = await merge_resolved_entity_into_plan(
+                session, user, question, plan, accessible_org_ids=accessible, org_id_hint=org_id
+            )
         if plan.get("needs_clarification"):
             prompts = plan.get("clarification_prompts") or []
             if not prompts:
@@ -616,9 +662,15 @@ async def run_natural_language_query(
     fingerprint_src = json.dumps(plan, sort_keys=True, default=str)
     fp = hashlib.sha256(fingerprint_src.encode()).hexdigest()
 
+    if plan.get("intent") == "variance_comment":
+        metric_keys = ["variance_comment"]
+    elif plan.get("intent") == "rollup":
+        metric_keys = ["total_revenue"]
+    else:
+        metric_keys = ["compare_revenue"]
     resolved = {
         "kind": "structured_summary",
-        "metric_keys": ["total_revenue"] if plan.get("intent") == "rollup" else ["compare_revenue"],
+        "metric_keys": metric_keys,
         "dimensions": [plan.get("hierarchy")],
         "safe_sql_fingerprint": f"sha256:{fp}",
         "intent": plan.get("intent"),

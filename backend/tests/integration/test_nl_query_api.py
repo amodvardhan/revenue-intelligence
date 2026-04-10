@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+import uuid
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password
@@ -21,6 +22,7 @@ from app.models.dimensions import (
     UserOrgRole,
 )
 from app.models.facts import FactRevenue
+from app.models.phase7 import RevenueVarianceComment
 from app.models.tenant import Tenant, User
 
 
@@ -632,3 +634,108 @@ async def test_story_3_4_audit_detail_includes_resolved_plan_after_success(
     )
     assert ver.status_code == 200
     assert ver.json()["content_sha256"] == load_semantic_bundle().content_sha256
+
+
+@pytest.mark.asyncio
+async def test_nl_org_fallback_when_llm_mislabels_company_as_business_unit(
+    phase3_tables: None,
+    async_client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the model puts an organization name in business_unit_name, resolve dim_organization."""
+
+    async def _fake_llm(_q: str) -> dict:
+        return {
+            "needs_clarification": False,
+            "intent": "rollup",
+            "hierarchy": "bu",
+            "business_unit_name": "NL Org",
+            "revenue_date_from": "2026-01-01",
+            "revenue_date_to": "2026-12-31",
+            "interpretation": "FY revenue (mislabeled as BU)",
+        }
+
+    monkeypatch.setattr("app.services.query_engine.service.complete_nl_plan", _fake_llm)
+    _patch_nl_settings(monkeypatch, _SettingsNL)
+
+    token, org_id = await _seed_nl_user(db_session)
+
+    r = await async_client.post(
+        "/api/v1/query/natural-language",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "question": "revenue of NL Org overall this fiscal year",
+            "org_id": org_id,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "completed"
+    assert "org_name" in data["columns"]
+    assert len(data["rows"]) >= 1
+    assert data["rows"][0]["org_name"] == "NL Org"
+
+
+@pytest.mark.asyncio
+async def test_nl_variance_comment_returns_stored_narrative(
+    phase3_tables: None,
+    async_client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """variance_comment intent reads revenue_variance_comment (no numeric rollup)."""
+
+    async def _fake_llm(_q: str) -> dict:
+        return {
+            "needs_clarification": False,
+            "intent": "variance_comment",
+            "hierarchy": "customer",
+            "customer_name": "World Health Organization",
+            "variance_revenue_month": "2026-04-01",
+            "interpretation": "MoM variance narrative for April 2026",
+        }
+
+    monkeypatch.setattr("app.services.query_engine.service.complete_nl_plan", _fake_llm)
+    _patch_nl_settings(monkeypatch, _SettingsNL)
+
+    token, org_id = await _seed_nl_user_with_who_customer(db_session)
+
+    org_uuid = uuid.UUID(org_id)
+    org_row = await db_session.scalar(select(DimOrganization).where(DimOrganization.org_id == org_uuid))
+    cust_row = await db_session.scalar(
+        select(DimCustomer).where(
+            DimCustomer.org_id == org_uuid,
+            DimCustomer.customer_name == "World Health Organization",
+        )
+    )
+    assert org_row is not None and cust_row is not None
+
+    db_session.add(
+        RevenueVarianceComment(
+            tenant_id=org_row.tenant_id,
+            org_id=org_row.org_id,
+            customer_id=cust_row.customer_id,
+            revenue_month=date(2026, 4, 1),
+            business_unit_id=None,
+            division_id=None,
+            comment_text="Milestone billing shifted into April.",
+        )
+    )
+    await db_session.flush()
+
+    r = await async_client.post(
+        "/api/v1/query/natural-language",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "question": "Why did revenue deviate from March 2026 to April 2026 for WHO",
+            "org_id": org_id,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "completed"
+    assert "variance_comment" in data["columns"]
+    assert len(data["rows"]) == 1
+    assert data["rows"][0]["variance_comment"] == "Milestone billing shifted into April."
+    assert data["rows"][0]["revenue_month"] == "2026-04-01"

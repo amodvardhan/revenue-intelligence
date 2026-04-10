@@ -209,6 +209,16 @@ class DimCustomer(Base):
         ForeignKey("dim_organization.org_id", ondelete="SET NULL"),
         nullable=True,
     )
+    business_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("dim_business_unit.business_unit_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    division_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("dim_division.division_id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

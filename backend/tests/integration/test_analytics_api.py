@@ -101,6 +101,29 @@ async def test_rollup_org(async_client: AsyncClient, db_session: AsyncSession) -
 
 
 @pytest.mark.asyncio
+async def test_rollup_org_scoped_returns_zero_row_when_no_facts_in_range(
+    async_client: AsyncClient, db_session: AsyncSession,
+) -> None:
+    """Single-org scope must not disappear when INNER JOIN finds no facts — show 0 revenue."""
+    token, org_id = await _seed_hierarchy_with_facts(db_session)
+    r = await async_client.get(
+        "/api/v1/analytics/revenue/rollup",
+        params={
+            "hierarchy": "org",
+            "revenue_date_from": "2024-01-01",
+            "revenue_date_to": "2024-01-31",
+            "org_id": org_id,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data["rows"]) == 1
+    assert data["rows"][0]["revenue"] == "0.0000"
+    assert data["rows"][0]["org_name"] == "Root Org"
+
+
+@pytest.mark.asyncio
 async def test_rollup_bu(async_client: AsyncClient, db_session: AsyncSession) -> None:
     token, org_id = await _seed_hierarchy_with_facts(db_session)
     r = await async_client.get(
@@ -307,7 +330,10 @@ async def test_rollup_with_revenue_type_filter_no_match(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
-    assert r.json()["rows"] == []
+    data = r.json()
+    assert len(data["rows"]) == 1
+    assert data["rows"][0]["revenue"] == "0.0000"
+    assert data["rows"][0]["org_name"] == "Root Org"
 
 
 @pytest.mark.asyncio

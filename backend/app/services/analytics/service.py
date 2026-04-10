@@ -20,7 +20,8 @@ CompareKind = Literal["mom", "qoq", "yoy"]
 
 
 def _amount_str(d: Decimal) -> str:
-    return format(d, "f")
+    """Fixed four decimal places for NUMERIC(18,4) revenue amounts (consistent in API + NL)."""
+    return format(d.quantize(Decimal("0.0001")), "f")
 
 
 def _pct_str(num: Decimal, den: Decimal) -> str:
@@ -110,8 +111,14 @@ async def revenue_rollup(
     filters = base + date_filters
     as_of = datetime.now(timezone.utc)
 
+    singleton_org: uuid.UUID | None = next(iter(org_scope)) if len(org_scope) == 1 else None
     if hierarchy == "org":
-        rows = await _rollup_org(session, filters)
+        rows = await _rollup_org(
+            session,
+            filters,
+            tenant_id=tenant_id,
+            fallback_single_org_id=singleton_org,
+        )
     elif hierarchy == "bu":
         rows = await _rollup_bu(session, filters)
     elif hierarchy == "division":
@@ -138,7 +145,18 @@ async def revenue_rollup(
     return payload, as_of
 
 
-async def _rollup_org(session: AsyncSession, filters: list) -> list[dict]:
+async def _rollup_org(
+    session: AsyncSession,
+    filters: list,
+    *,
+    tenant_id: uuid.UUID,
+    fallback_single_org_id: uuid.UUID | None,
+) -> list[dict]:
+    """
+    Org rollup uses an inner join to facts, so orgs with no rows in-range disappear entirely.
+    When the caller scoped to exactly one org, synthesize a zero row so API/NL consumers see
+    total revenue 0 instead of an empty list.
+    """
     stmt = (
         select(
             DimOrganization.org_id,
@@ -166,6 +184,28 @@ async def _rollup_org(session: AsyncSession, filters: list) -> list[dict]:
                 "child_count": int(cc or 0),
             }
         )
+    if not rows_out and fallback_single_org_id is not None:
+        pair = await session.execute(
+            select(DimOrganization.org_id, DimOrganization.org_name).where(
+                DimOrganization.tenant_id == tenant_id,
+                DimOrganization.org_id == fallback_single_org_id,
+            )
+        )
+        row = pair.first()
+        if row is not None:
+            oid, oname = row[0], row[1]
+            rows_out.append(
+                {
+                    "org_id": str(oid),
+                    "org_name": oname,
+                    "business_unit_id": None,
+                    "business_unit_name": None,
+                    "division_id": None,
+                    "division_name": None,
+                    "revenue": _amount_str(Decimal("0")),
+                    "child_count": 0,
+                }
+            )
     return rows_out
 
 

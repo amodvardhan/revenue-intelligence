@@ -12,6 +12,109 @@ interface CustomerItem {
   customer_name: string;
   customer_name_common: string | null;
   customer_code: string | null;
+  business_unit_id: string | null;
+  business_unit_name: string | null;
+  division_id: string | null;
+  division_name: string | null;
+}
+
+function CustomerHierarchyRow({
+  orgId,
+  customer,
+}: {
+  orgId: string;
+  customer: CustomerItem;
+}) {
+  const queryClient = useQueryClient();
+  const [bu, setBu] = useState(customer.business_unit_id ?? "");
+  const [div, setDiv] = useState(customer.division_id ?? "");
+
+  useEffect(() => {
+    setBu(customer.business_unit_id ?? "");
+    setDiv(customer.division_id ?? "");
+  }, [customer.customer_id, customer.business_unit_id, customer.division_id]);
+
+  const businessUnits = useQuery({
+    queryKey: ["business-units", orgId],
+    queryFn: async () => {
+      const { data } = await api.get<{ items: { business_unit_id: string; business_unit_name: string }[] }>(
+        "/api/v1/business-units",
+        { params: { org_id: orgId } },
+      );
+      return data;
+    },
+    enabled: Boolean(orgId),
+  });
+
+  const divisions = useQuery({
+    queryKey: ["divisions", bu],
+    queryFn: async () => {
+      const { data } = await api.get<{ items: { division_id: string; division_name: string }[] }>("/api/v1/divisions", {
+        params: { business_unit_id: bu },
+      });
+      return data;
+    },
+    enabled: Boolean(bu),
+  });
+
+  const patchHierarchy = useMutation({
+    mutationFn: async (payload: { business_unit_id: string | null; division_id: string | null }) => {
+      const { data } = await api.patch<CustomerItem>(`/api/v1/customers/${customer.customer_id}`, payload);
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["customers", orgId] });
+    },
+  });
+
+  return (
+    <tr key={customer.customer_id} className="hover:bg-neutral-50/80">
+      <td className="px-4 py-3 text-ink">{customer.customer_name}</td>
+      <td className="px-4 py-3 text-ink-muted">{customer.customer_name_common ?? "—"}</td>
+      <td className="px-4 py-3 font-mono text-xs text-ink-muted">{customer.customer_code ?? "—"}</td>
+      <td className="px-4 py-2">
+        <select
+          className="input-modern !h-9 w-full min-w-[10rem] text-[13px]"
+          value={bu}
+          disabled={businessUnits.isLoading || patchHierarchy.isPending}
+          onChange={(e) => {
+            const v = e.target.value;
+            setBu(v);
+            setDiv("");
+            patchHierarchy.mutate({ business_unit_id: v || null, division_id: null });
+          }}
+          aria-label={`Business unit for ${customer.customer_name}`}
+        >
+          <option value="">—</option>
+          {businessUnits.data?.items.map((b) => (
+            <option key={b.business_unit_id} value={b.business_unit_id}>
+              {b.business_unit_name}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="px-4 py-2">
+        <select
+          className="input-modern !h-9 w-full min-w-[10rem] text-[13px]"
+          value={div}
+          disabled={!bu || divisions.isLoading || patchHierarchy.isPending}
+          onChange={(e) => {
+            const v = e.target.value;
+            setDiv(v);
+            patchHierarchy.mutate({ business_unit_id: bu || null, division_id: v || null });
+          }}
+          aria-label={`Division for ${customer.customer_name}`}
+        >
+          <option value="">—</option>
+          {divisions.data?.items.map((d) => (
+            <option key={d.division_id} value={d.division_id}>
+              {d.division_name}
+            </option>
+          ))}
+        </select>
+      </td>
+    </tr>
+  );
 }
 
 export function CustomersPage() {
@@ -20,6 +123,8 @@ export function CustomersPage() {
   const [legalName, setLegalName] = useState("");
   const [commonName, setCommonName] = useState("");
   const [code, setCode] = useState("");
+  const [newBu, setNewBu] = useState("");
+  const [newDiv, setNewDiv] = useState("");
   const [banner, setBanner] = useState<string | null>(null);
 
   const orgs = useQuery({
@@ -34,6 +139,38 @@ export function CustomersPage() {
   useEffect(() => {
     if (firstOrg && !orgId) setOrgId(firstOrg);
   }, [firstOrg, orgId]);
+
+  useEffect(() => {
+    setNewBu("");
+    setNewDiv("");
+  }, [orgId]);
+
+  useEffect(() => {
+    setNewDiv("");
+  }, [newBu]);
+
+  const businessUnits = useQuery({
+    queryKey: ["business-units", orgId],
+    queryFn: async () => {
+      const { data } = await api.get<{ items: { business_unit_id: string; business_unit_name: string }[] }>(
+        "/api/v1/business-units",
+        { params: { org_id: orgId } },
+      );
+      return data;
+    },
+    enabled: Boolean(orgId),
+  });
+
+  const newDivisions = useQuery({
+    queryKey: ["divisions", newBu],
+    queryFn: async () => {
+      const { data } = await api.get<{ items: { division_id: string; division_name: string }[] }>("/api/v1/divisions", {
+        params: { business_unit_id: newBu },
+      });
+      return data;
+    },
+    enabled: Boolean(newBu),
+  });
 
   const customers = useQuery({
     queryKey: ["customers", orgId],
@@ -54,6 +191,8 @@ export function CustomersPage() {
         customer_name: legalName.trim(),
         customer_name_common: commonName.trim() || null,
         customer_code: code.trim() || null,
+        business_unit_id: newBu || null,
+        division_id: newDiv || null,
       });
       return data;
     },
@@ -62,11 +201,13 @@ export function CustomersPage() {
       setLegalName("");
       setCommonName("");
       setCode("");
+      setNewBu("");
+      setNewDiv("");
       void queryClient.invalidateQueries({ queryKey: ["customers", orgId] });
     },
     onError: () => {
       setBanner(
-        "Could not create customer. Check permissions (Admin, IT Admin, Finance, or BU head), or a duplicate customer code.",
+        "Could not create customer. Check permissions (Admin, IT Admin, Finance, or BU head), hierarchy (BU must belong to this org), or a duplicate customer code.",
       );
     },
   });
@@ -77,8 +218,8 @@ export function CustomersPage() {
         <h1 className="page-headline">Customers</h1>
         <p className="page-lede">
           Create customers under an organization before you assign delivery managers, attach projects, or load revenue.
-          Imports can still add or update customers from Excel; manual rows here keep operations moving when spreadsheets are
-          not ready.
+          Assign each account to a business unit (and optionally a division) so revenue rollups and the Revenue matrix
+          can narrow by commercial hierarchy even when fact rows omit BU or division.
         </p>
       </header>
 
@@ -137,6 +278,38 @@ export function CustomersPage() {
                 placeholder="Unique in tenant when set"
               />
             </div>
+            <div>
+              <label className="form-field-label">Business unit (optional)</label>
+              <select
+                className="input-modern !h-10 w-full"
+                value={newBu}
+                onChange={(e) => setNewBu(e.target.value)}
+                disabled={!orgId || businessUnits.isLoading}
+              >
+                <option value="">—</option>
+                {businessUnits.data?.items.map((b) => (
+                  <option key={b.business_unit_id} value={b.business_unit_id}>
+                    {b.business_unit_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="form-field-label">Division (optional)</label>
+              <select
+                className="input-modern !h-10 w-full"
+                value={newDiv}
+                onChange={(e) => setNewDiv(e.target.value)}
+                disabled={!newBu || newDivisions.isLoading}
+              >
+                <option value="">—</option>
+                {newDivisions.data?.items.map((d) => (
+                  <option key={d.division_id} value={d.division_id}>
+                    {d.division_name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <button
             type="button"
@@ -160,23 +333,19 @@ export function CustomersPage() {
                 <th className="px-4 py-3">Legal name</th>
                 <th className="px-4 py-3">Common name</th>
                 <th className="px-4 py-3">Code</th>
+                <th className="px-4 py-3">Business unit</th>
+                <th className="px-4 py-3">Division</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {customers.data.items.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-ink-muted" colSpan={3}>
+                  <td className="px-4 py-8 text-center text-ink-muted" colSpan={5}>
                     No customers yet for this organization.
                   </td>
                 </tr>
               ) : (
-                customers.data.items.map((c) => (
-                  <tr key={c.customer_id} className="hover:bg-neutral-50/80">
-                    <td className="px-4 py-3 text-ink">{c.customer_name}</td>
-                    <td className="px-4 py-3 text-ink-muted">{c.customer_name_common ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-ink-muted">{c.customer_code ?? "—"}</td>
-                  </tr>
-                ))
+                customers.data.items.map((c) => <CustomerHierarchyRow key={c.customer_id} orgId={orgId} customer={c} />)
               )}
             </tbody>
           </table>

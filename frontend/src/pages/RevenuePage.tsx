@@ -358,7 +358,7 @@ export function RevenuePage() {
       });
       return data;
     },
-    enabled: phase7 && Boolean(orgId),
+    enabled: Boolean(orgId),
   });
 
   const divisions = useQuery({
@@ -369,7 +369,7 @@ export function RevenuePage() {
       });
       return data;
     },
-    enabled: phase7 && Boolean(businessUnitId),
+    enabled: Boolean(businessUnitId),
   });
 
   const matrix = useQuery({
@@ -592,42 +592,40 @@ export function RevenuePage() {
             ))}
           </select>
         </div>
-        {phase7 ? (
-          <>
-            <div className="min-w-[200px]">
-              <label className="form-field-label">Business unit</label>
-              <select
-                className="input-modern !h-10 w-full"
-                value={businessUnitId}
-                onChange={(e) => setBusinessUnitId(e.target.value)}
-                disabled={!orgId || businessUnits.isLoading}
-              >
-                <option value="">All (organization total)</option>
-                {businessUnits.data?.items.map((b) => (
-                  <option key={b.business_unit_id} value={b.business_unit_id}>
-                    {b.business_unit_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-[200px]">
-              <label className="form-field-label">Division</label>
-              <select
-                className="input-modern !h-10 w-full"
-                value={divisionId}
-                onChange={(e) => setDivisionId(e.target.value)}
-                disabled={!businessUnitId || divisions.isLoading}
-              >
-                <option value="">All in BU</option>
-                {divisions.data?.items.map((d) => (
-                  <option key={d.division_id} value={d.division_id}>
-                    {d.division_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
-        ) : null}
+        <>
+          <div className="min-w-[200px]">
+            <label className="form-field-label">Business unit</label>
+            <select
+              className="input-modern !h-10 w-full"
+              value={businessUnitId}
+              onChange={(e) => setBusinessUnitId(e.target.value)}
+              disabled={!orgId || businessUnits.isLoading}
+            >
+              <option value="">All (organization total)</option>
+              {businessUnits.data?.items.map((b) => (
+                <option key={b.business_unit_id} value={b.business_unit_id}>
+                  {b.business_unit_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[200px]">
+            <label className="form-field-label">Division</label>
+            <select
+              className="input-modern !h-10 w-full"
+              value={divisionId}
+              onChange={(e) => setDivisionId(e.target.value)}
+              disabled={!businessUnitId || divisions.isLoading}
+            >
+              <option value="">All in BU</option>
+              {divisions.data?.items.map((d) => (
+                <option key={d.division_id} value={d.division_id}>
+                  {d.division_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
       </div>
 
       {phase7 && matrix.isError ? (

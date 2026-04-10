@@ -1,5 +1,5 @@
 # Governed semantic bundle — version label must bump when metric/dimension meanings change.
-version_label: "2026.04.2"
+version_label: "2026.04.6"
 
 metrics:
   total_revenue:
@@ -25,7 +25,48 @@ dimensions:
   organization:
     canonical_key: dimension.organization
     display_name: "Organization"
+  customer:
+    canonical_key: dimension.customer
+    display_name: "Customer / account"
+    description: "Named accounts in dim_customer; optional business_unit_id and division_id place the account under the org hierarchy when fact rows omit BU/division."
+
+# Grounding for the NL planner (plan JSON only — no SQL). Keeps asks aligned with physical tables.
+nl_grounding:
+  primary_fact_table: fact_revenue
+  fact_columns:
+    amount: fact_revenue.amount
+    date: fact_revenue.revenue_date
+  foreign_keys:
+    org_id: dim_organization
+    business_unit_id: dim_business_unit
+    division_id: dim_division
+    customer_id: dim_customer
+  planner_hints:
+    - 'Customer revenue: set hierarchy "customer", fill customer_name (or rely on entity extraction); the server resolves names to dim_customer.customer_id.'
+    - "Legal-entity / company-wide rollups use hierarchy \"org\" and dim_organization.org_name — do not put org legal names in customer_name unless the user clearly means a customer account with that name."
+  # MoM / variance *commentary* lives in a separate table from revenue amounts — NL uses intent variance_comment.
+  variance_narrative:
+    table: revenue_variance_comment
+    text_column: comment_text
+    time_key: revenue_month
+    description: "User- or matrix-captured narrative explaining revenue change for a customer at calendar-month grain; optional BU/division scope."
+    foreign_keys:
+      org_id: dim_organization
+      customer_id: dim_customer
+      business_unit_id: dim_business_unit
+      division_id: dim_division
+    planner_hints:
+      - 'Questions about *why* revenue changed, reasons, commentary, or "what drove" variance → intent variance_comment (not rollup or compare).'
+      - "Set variance_revenue_month to the first day of the calendar month the narrative applies to; set hierarchy to the narrowest named scope (prefer customer when a customer is named)."
+      - "This path returns stored comment_text from revenue_variance_comment — it does not compute variance from fact_revenue; use rollup/compare intents for numeric period-over-period revenue."
 
 period_hints:
   calendar_quarter:
     description: "Calendar quarters (Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec)"
+
+nl_intents:
+  variance_comment:
+    description: "Stored MoM variance narrative from revenue_variance_comment (Phase 7 matrix)"
+    physical_table: revenue_variance_comment
+    primary_key_month: revenue_month
+    text_field: comment_text

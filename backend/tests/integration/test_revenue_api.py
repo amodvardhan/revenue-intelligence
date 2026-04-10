@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import config as config_module
 from app.core.security import create_access_token, hash_password
-from app.models.dimensions import DimCustomer, DimOrganization, UserOrgRole
+from app.models.dimensions import DimBusinessUnit, DimCustomer, DimOrganization, UserOrgRole
 from app.models.facts import FactRevenue
 from app.models.tenant import Tenant, User
 
@@ -176,6 +176,54 @@ async def _seed_user_customer_matrix(session: AsyncSession) -> tuple[str, str]:
     return token, str(org.org_id)
 
 
+async def _seed_matrix_customer_home_bu(session: AsyncSession) -> tuple[str, str, str]:
+    """Org + BU; customer assigned to BU; fact has customer but null business_unit_id."""
+    tenant = Tenant(name="Matrix BU Home Tenant")
+    session.add(tenant)
+    await session.flush()
+    org = DimOrganization(tenant_id=tenant.tenant_id, org_name="e-Zest Digital Solution")
+    session.add(org)
+    await session.flush()
+    bu = DimBusinessUnit(tenant_id=tenant.tenant_id, org_id=org.org_id, business_unit_name="IO")
+    session.add(bu)
+    await session.flush()
+    cust = DimCustomer(
+        tenant_id=tenant.tenant_id,
+        org_id=org.org_id,
+        customer_name="World Health Organization",
+        business_unit_id=bu.business_unit_id,
+    )
+    session.add(cust)
+    await session.flush()
+    uid = uuid4().hex[:12]
+    user = User(
+        tenant_id=tenant.tenant_id,
+        email=f"mxhome-{uid}@example.com",
+        password_hash=hash_password("secret"),
+    )
+    session.add(user)
+    await session.flush()
+    session.add(UserOrgRole(user_id=user.user_id, org_id=org.org_id, role="finance"))
+    session.add(
+        FactRevenue(
+            tenant_id=tenant.tenant_id,
+            amount=Decimal("50.0000"),
+            currency_code="USD",
+            revenue_date=date(2026, 3, 1),
+            org_id=org.org_id,
+            customer_id=cust.customer_id,
+            business_unit_id=None,
+            division_id=None,
+            source_system="excel",
+            external_id=f"mxhome-{uid}-1",
+            batch_id=None,
+        )
+    )
+    await session.flush()
+    token = create_access_token(subject=str(user.user_id))
+    return token, str(org.org_id), str(bu.business_unit_id)
+
+
 @pytest.mark.asyncio
 async def test_revenue_matrix_workbook_layout(
     async_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
@@ -205,6 +253,29 @@ async def test_revenue_matrix_workbook_layout(
         assert data["lines"][1]["amounts_editable"] is False
         assert data["lines"][1]["amounts"][0] == ""
         assert data["lines"][1]["amounts"][1] == "30.0000"
+    finally:
+        config_module.get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_revenue_matrix_bu_filter_matches_customer_home_when_fact_bu_null(
+    async_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ENABLE_PHASE7", "true")
+    config_module.get_settings.cache_clear()
+    try:
+        token, org_id, bu_id = await _seed_matrix_customer_home_bu(db_session)
+        r = await async_client.get(
+            "/api/v1/revenue/matrix",
+            params={"org_id": org_id, "business_unit_id": bu_id},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["empty_reason"] is None
+        assert data["matrix_scope"] == "business_unit"
+        assert data["lines"][0]["row_type"] == "value"
+        assert data["lines"][0]["amounts"] == ["50.0000"]
     finally:
         config_module.get_settings.cache_clear()
 

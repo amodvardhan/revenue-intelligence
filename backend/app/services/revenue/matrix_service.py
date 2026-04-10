@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Date, and_, cast, func, select
+from sqlalchemy import Date, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dimensions import DimCustomer
@@ -56,6 +56,22 @@ def _manual_amount(
     if k0 in manual:
         return manual[k0]
     return None
+
+
+def _manual_customer_matches_home_scope(
+    home_bu: UUID | None,
+    home_div: UUID | None,
+    sel_bu: UUID | None,
+    sel_div: UUID | None,
+) -> bool:
+    """Manual rows without fact lines must match the customer's home BU/division when drilling down."""
+    if sel_bu is None and sel_div is None:
+        return True
+    if sel_bu is not None and home_bu is not None and home_bu != sel_bu:
+        return False
+    if sel_div is not None and home_div is not None and home_div != sel_div:
+        return False
+    return True
 
 
 def _scoped_variance_text(
@@ -134,9 +150,26 @@ async def build_revenue_matrix(
             )
         )
     if business_unit_id is not None:
-        stmt = stmt.where(FactRevenue.business_unit_id == business_unit_id)
+        stmt = stmt.where(
+            or_(
+                FactRevenue.business_unit_id == business_unit_id,
+                and_(
+                    FactRevenue.business_unit_id.is_(None),
+                    DimCustomer.business_unit_id == business_unit_id,
+                ),
+            )
+        )
     if division_id is not None:
-        stmt = stmt.where(FactRevenue.division_id == division_id)
+        stmt = stmt.where(
+            or_(
+                FactRevenue.division_id == division_id,
+                and_(
+                    FactRevenue.division_id.is_(None),
+                    DimCustomer.division_id == division_id,
+                    DimCustomer.business_unit_id == business_unit_id,
+                ),
+            )
+        )
     if revenue_date_from is not None:
         stmt = stmt.where(FactRevenue.revenue_date >= revenue_date_from)
     if revenue_date_to is not None:
@@ -200,6 +233,38 @@ async def build_revenue_matrix(
     customer_ids: set[UUID] = set(fact_by_cust_month.keys())
     for (cid, _mk, _b, _d) in manual_map.keys():
         customer_ids.add(cid)
+
+    fact_customer_ids = set(fact_by_cust_month.keys())
+    only_manual = customer_ids - fact_customer_ids
+    if only_manual and (business_unit_id is not None or division_id is not None):
+        hres = await session.execute(
+            select(DimCustomer.customer_id, DimCustomer.business_unit_id, DimCustomer.division_id).where(
+                DimCustomer.customer_id.in_(only_manual),
+                DimCustomer.tenant_id == user.tenant_id,
+            )
+        )
+        home_map: dict[UUID, tuple[UUID | None, UUID | None]] = {
+            r[0]: (r[1], r[2]) for r in hres.all()
+        }
+        for cid in list(only_manual):
+            bu_h, div_h = home_map.get(cid, (None, None))
+            if not _manual_customer_matches_home_scope(bu_h, div_h, business_unit_id, division_id):
+                customer_ids.discard(cid)
+
+        month_keys = set()
+        for cid in customer_ids:
+            month_keys |= set(fact_by_cust_month.get(cid, {}).keys())
+        for (cid, mk, _bu, _div) in manual_map.keys():
+            if cid in customer_ids:
+                month_keys.add(_month_start(mk))
+        if not month_keys:
+            return RevenueMatrixResponse(
+                currency_code=currency,
+                month_columns=[],
+                lines=[],
+                empty_reason="no_customer_facts",
+                matrix_scope="organization",
+            )
 
     months_sorted = sorted(month_keys)
     month_columns = [MatrixMonthColumn(key=m.isoformat(), label=_month_label(m)) for m in months_sorted]

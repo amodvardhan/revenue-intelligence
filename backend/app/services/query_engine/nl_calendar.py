@@ -7,6 +7,8 @@ import re
 from datetime import date
 from typing import Any
 
+from app.services.query_engine.nl_heuristics import looks_like_variance_narrative_question
+
 # Month name / abbreviation → month number (longest keys matched first in alternation)
 _MONTH_ALIASES: tuple[tuple[str, int], ...] = (
     ("september", 9),
@@ -147,11 +149,49 @@ def try_explicit_calendar_month_range(question: str) -> tuple[date, date] | None
     return spans[0]
 
 
+def try_variance_narrative_month_start(question: str) -> date | None:
+    """
+    Month-start date for `revenue_variance_comment.revenue_month` (matrix MoM landing month).
+
+    - One explicit month in text → that month (narrative for change into that month).
+    - Two distinct months (e.g. March 2026 to April 2026) → the chronologically later month.
+    - Three or more distinct months → None (ambiguous).
+    """
+    if not (question or "").strip():
+        return None
+    spans = _all_month_year_spans(question)
+    starts: list[date] = sorted({s[0] for s in spans})
+    if len(starts) >= 2:
+        if len(starts) > 2:
+            return None
+        return starts[-1]
+    if len(starts) == 1:
+        return starts[0]
+    return None
+
+
+def apply_variance_month_to_plan(plan: dict[str, Any], question: str) -> dict[str, Any]:
+    """Fill variance_revenue_month from the question when intent is variance_comment."""
+    if plan.get("intent") != "variance_comment":
+        return plan
+    vm = try_variance_narrative_month_start(question)
+    if vm is None:
+        return plan
+    out = dict(plan)
+    out["variance_revenue_month"] = vm.isoformat()
+    return out
+
+
 def merge_explicit_calendar_month_into_plan(plan: dict[str, Any], question: str) -> dict[str, Any]:
     """
     When the user already named a calendar month and year (e.g. Mar'26), force a rollup range
     and drop fiscal-year clarification — the LLM sometimes still asks despite the prompt.
     """
+    if plan.get("intent") == "variance_comment":
+        return plan
+    if looks_like_variance_narrative_question(question):
+        return plan
+
     rng = try_explicit_calendar_month_range(question)
     if rng is None:
         return plan
